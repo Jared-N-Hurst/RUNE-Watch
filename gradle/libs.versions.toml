@@ -1,0 +1,52 @@
+[versions]
+agp = "8.7.3"
+kotlin = "2.1.0"
+coreKtx = "1.15.0"
+wearCompose = "1.4.0"
+wearFoundation = "1.4.0"
+horologist = "0.6.21"          # Google WearOS helper library
+lifecycleRuntime = "2.9.0"
+activityCompose = "1.10.1"
+tiles = "1.4.1"
+watchface = "1.2.1"
+complications = "1.2.1"
+okhttp = "4.12.0"
+coroutines = "1.10.1"
+datastore = "1.1.2"
+
+[libraries]
+androidx-core-ktx          = { group = "androidx.core",           name = "core-ktx",                          version.ref = "coreKtx" }
+androidx-lifecycle-runtime = { group = "androidx.lifecycle",      name = "lifecycle-runtime-ktx",             version.ref = "lifecycleRuntime" }
+androidx-activity-compose  = { group = "androidx.activity",       name = "activity-compose",                  version.ref = "activityCompose" }
+
+# Compose for Wear OS
+wear-compose-material       = { group = "androidx.wear.compose",  name = "compose-material",                  version.ref = "wearCompose" }
+wear-compose-foundation     = { group = "androidx.wear.compose",  name = "compose-foundation",                version.ref = "wearFoundation" }
+wear-compose-navigation     = { group = "androidx.wear.compose",  name = "compose-navigation",                version.ref = "wearCompose" }
+
+# Horologist (Google's production WearOS toolkit)
+horologist-compose-layout   = { group = "com.google.android.horologist", name = "horologist-compose-layout",  version.ref = "horologist" }
+horologist-compose-material = { group = "com.google.android.horologist", name = "horologist-compose-material", version.ref = "horologist" }
+horologist-health           = { group = "com.google.android.horologist", name = "horologist-health",           version.ref = "horologist" }
+horologist-tiles            = { group = "com.google.android.horologist", name = "horologist-tiles",            version.ref = "horologist" }
+horologist-data-layer       = { group = "com.google.android.horologist", name = "horologist-datalayer",        version.ref = "horologist" }
+
+# Tiles + Complications + Watch Face
+wear-tiles                  = { group = "androidx.wear.tiles",    name = "tiles",                             version.ref = "tiles" }
+wear-tiles-material         = { group = "androidx.wear.tiles",    name = "tiles-material",                    version.ref = "tiles" }
+wear-watchface              = { group = "androidx.wear.watchface", name = "watchface",                        version.ref = "watchface" }
+wear-complications-provider = { group = "androidx.wear.watchface", name = "watchface-complications-data-source-ktx", version.ref = "complications" }
+
+# Network
+okhttp                      = { group = "com.squareup.okhttp3",   name = "okhttp",                            version.ref = "okhttp" }
+
+# Coroutines
+kotlinx-coroutines-android  = { group = "org.jetbrains.kotlinx",  name = "kotlinx-coroutines-android",        version.ref = "coroutines" }
+
+# DataStore (persisting device state / auth)
+datastore-preferences       = { group = "androidx.datastore",      name = "datastore-preferences",             version.ref = "datastore" }
+
+[plugins]
+android-application = { id = "com.android.application",       version.ref = "agp" }
+kotlin-android      = { id = "org.jetbrains.kotlin.android",  version.ref = "kotlin" }
+kotlin-compose      = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

@@ -1,0 +1,20 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android Studio
+*.iml
+.idea/
+*.DS_Store
+local.properties
+
+# Keys
+*.jks
+*.keystore
+
+# Outputs
+app/release/
+
+# Logs
+*.log
