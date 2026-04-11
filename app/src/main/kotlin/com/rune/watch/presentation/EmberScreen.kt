@@ -1,3 +1,4 @@
+﻿// Copyright (c) RUNE Systems LLC 2026
 package com.rune.watch.presentation
 
 import androidx.compose.foundation.background

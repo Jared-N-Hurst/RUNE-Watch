@@ -1,3 +1,4 @@
+﻿// Copyright (c) RUNE Systems LLC 2026
 // Top-level build file — configuration shared across all sub-projects.
 plugins {
     alias(libs.plugins.android.application) apply false

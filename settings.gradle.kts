@@ -1,3 +1,4 @@
+﻿// Copyright (c) RUNE Systems LLC 2026
 pluginManagement {
     repositories {
         google()

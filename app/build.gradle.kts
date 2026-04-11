@@ -1,3 +1,4 @@
+﻿// Copyright (c) RUNE Systems LLC 2026
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
