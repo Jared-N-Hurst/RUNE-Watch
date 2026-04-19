@@ -8,6 +8,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -87,9 +89,7 @@ class DeviceBusClient(private val context: Context) {
                 val req = Request.Builder()
                     .url("$API_BASE_URL/api/device/command?userId=$userId")
                     .addHeader("Authorization", "Bearer $authToken")
-                    .post(okhttp3.RequestBody.create(
-                        okhttp3.MediaType.parse("application/json"), body
-                    ))
+                    .post(body.toRequestBody("application/json".toMediaType()))
                     .build()
                 http.newCall(req).execute()
             }
@@ -127,9 +127,7 @@ class DeviceBusClient(private val context: Context) {
             val req = Request.Builder()
                 .url("$API_BASE_URL/api/device/register?userId=$userId")
                 .addHeader("Authorization", "Bearer $authToken")
-                .post(okhttp3.RequestBody.create(
-                    okhttp3.MediaType.parse("application/json"), caps
-                ))
+                .post(caps.toRequestBody("application/json".toMediaType()))
                 .build()
             http.newCall(req).execute()
         }

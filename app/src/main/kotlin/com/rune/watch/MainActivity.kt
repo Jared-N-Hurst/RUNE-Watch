@@ -4,7 +4,6 @@ package com.rune.watch
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.rune.watch.bus.DeviceBusClient
 import com.rune.watch.presentation.EmberApp
 
@@ -13,7 +12,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var busClient: DeviceBusClient
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
         super.onCreate(savedInstanceState)
         busClient = DeviceBusClient(applicationContext)
         setContent {
