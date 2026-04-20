@@ -14,6 +14,7 @@ import androidx.wear.protolayout.LayoutElementBuilders.FontStyle
 import androidx.wear.protolayout.TimelineBuilders
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.rune.watch.bus.EmberStatusClient
 import com.rune.watch.bus.IdentityMapClient
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -41,22 +42,33 @@ class EmberTileService : TileService() {
 
     override fun onTileRequest(requestParams: RequestBuilders.TileRequest): ListenableFuture<TileBuilders.Tile> {
         // FUT-3: load compact identity map for non-mythic tile display
+        // Prefer explicit Ember tile status and fall back to compact identity map.
         val tile = runBlocking {
             val prefs = dataStore.data.first()
             val userId = prefs[KEY_USER_ID] ?: ""
             val authToken = prefs[KEY_AUTH_TOKEN] ?: ""
 
-            val identityMap = if (userId.isNotEmpty() && authToken.isNotEmpty()) {
+            val emberStatus = if (userId.isNotEmpty() && authToken.isNotEmpty()) {
+                EmberStatusClient().fetchTileStatus(userId, authToken)
+            } else null
+
+            val identityMap = if (emberStatus == null && userId.isNotEmpty() && authToken.isNotEmpty()) {
                 IdentityMapClient().fetchCompact(userId, authToken)
             } else null
 
-            val displayText = when (identityMap?.convergenceState) {
-                "complete"   -> "Cycle complete"
+            val displayText = emberStatus?.let {
+                val riskSuffix = if (it.riskCount > 0) " • ${it.riskCount} alerts" else ""
+                "${it.phaseLabel}$riskSuffix"
+            } ?: when (identityMap?.convergenceState) {
+                "complete" -> "Cycle complete"
                 "converging" -> "Converging"
-                "stirring"   -> "Stirring"
-                else          -> "Ember ready"
+                "stirring" -> "Stirring"
+                else -> "Ember ready"
             }
-            val resonanceLabel = identityMap?.let {
+            val engagementSummary = emberStatus?.engagementSummary ?: ""
+            val resonanceLabel = emberStatus?.let {
+                " R:${(it.isilmeResonance * 100).toInt()}%"
+            } ?: identityMap?.let {
                 " R:${(it.isilmeResonance * 100).toInt()}%"
             } ?: ""
 
@@ -70,8 +82,19 @@ class EmberTileService : TileService() {
                 )
                 .build()
 
+            val summaryText = LayoutElementBuilders.Text.Builder()
+                .setText(engagementSummary)
+                .setFontStyle(
+                    FontStyle.Builder()
+                        .setSize(DimensionBuilders.sp(12f))
+                        .setColor(ColorBuilders.argb(0xFFFFFFFF.toInt()))
+                        .build()
+                )
+                .build()
+
             val layout = LayoutElementBuilders.Box.Builder()
                 .addContent(text)
+                .addContent(summaryText)
                 .build()
 
             TileBuilders.Tile.Builder()
