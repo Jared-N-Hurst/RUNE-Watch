@@ -20,6 +20,21 @@ fun EmberScreen(
 ) {
     val bgColor = Color(0xFF0D0D0D)
     val emberOrange = Color(0xFFFF7043)
+    
+    // Determine emotional color based on state (aligned with Portal)
+    val emotionalColor = when {
+        !connected -> Color(0xFF757575) // gray if offline
+        emberState.contains("alert") -> Color(0xFFFF7A72) // red for alert
+        emberState.contains("thinking") -> Color(0xFFC89DFF) // violet for thinking
+        else -> Color(0xFFFF7043) // default orange
+    }
+    
+    // Pulse settings based on state (aligned with Portal: alert/thinking/idle)
+    val (pulseDuration, pulseStrength) = when {
+        emberState.contains("alert") -> 1650 to 1.0f
+        emberState.contains("thinking") -> 2350 to 1.0f
+        else -> 3100 to 0.62f
+    }
 
     Box(
         modifier = Modifier
@@ -32,12 +47,12 @@ fun EmberScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.padding(16.dp)
         ) {
-            // Ember avatar glyph
-            Text(
-                text = "E",
-                fontSize = 40.sp,
-                color = emberOrange,
-                style = MaterialTheme.typography.display1
+            // Ember avatar glyph — Katiah "Being" with pulse and emotional coloring
+            KatiahGlyph(
+                emotionalColor = emotionalColor,
+                pulseStrength = pulseStrength,
+                pulseDuration = pulseDuration,
+                size = 80.dp
             )
 
             // Current Ember expression / state

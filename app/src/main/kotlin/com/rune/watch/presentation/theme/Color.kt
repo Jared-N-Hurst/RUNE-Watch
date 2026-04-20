@@ -10,6 +10,12 @@ val EmberSurface    = Color(0xFF141414)
 val EmberBackground = Color(0xFF0D0D0D)
 val EmberOnSurface  = Color(0xFFF0F0F0)
 
+// Emotional colors (aligned with Portal Katiah system)
+val EmotionalRed    = Color(0xFFFF7A72)    // Alert state
+val EmotionalViolet = Color(0xFFC89DFF)    // Thinking state
+val EmotionalBlue   = Color(0xFF8FD9FF)    // Contemplative
+val EmotionalAmber  = Color(0xFFFFCF88)    // Idle/default
+
 val EmberWatchColors = Colors(
     primary          = EmberOrange,
     primaryVariant   = EmberOrangeDark,
