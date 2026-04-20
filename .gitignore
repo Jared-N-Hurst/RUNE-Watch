@@ -18,3 +18,7 @@ app/release/
 
 # Logs
 *.log
+
+# Local diagnostics and tool caches
+*.hprof
+tools/
