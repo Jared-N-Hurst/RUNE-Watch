@@ -27,7 +27,7 @@ class EmberStatusClient {
         .build()
 
     suspend fun fetchTileStatus(userId: String, authToken: String): EmberTileStatus? = withContext(Dispatchers.IO) {
-        try {
+        runWithRetry(maxAttempts = 2) {
             val url = "$WATCH_API_BASE_URL/api/watch/ember-status?userId=$userId"
             val req = Request.Builder()
                 .url(url)
@@ -36,27 +36,29 @@ class EmberStatusClient {
                 .build()
 
             val resp = http.newCall(req).execute()
-            if (!resp.isSuccessful) return@withContext null
+            if (!resp.isSuccessful) return@runWithRetry null
 
-            val body = resp.body?.string() ?: return@withContext null
+            val body = resp.body?.string() ?: return@runWithRetry null
             parseTileStatusBody(body, userId)
-        } catch (_: Exception) {
-            null
         }
     }
 
     internal fun parseTileStatusBody(body: String, fallbackUserId: String): EmberTileStatus? {
-        val json = JSONObject(body)
-        if (!json.optBoolean("ok", false)) return null
+        return try {
+            val json = JSONObject(body)
+            if (!json.optBoolean("ok", false)) return null
 
-        val data = json.getJSONObject("data")
-        return EmberTileStatus(
-            userId = data.optString("userId", fallbackUserId),
-            phaseLabel = data.optString("phaseLabel", "Ready"),
-            engagementSummary = data.optString("engagementSummary", "Ember is synchronized and ready."),
-            riskCount = data.optInt("riskCount", 0),
-            isilmeResonance = data.optDouble("isilmeResonance", 0.0),
-            lastUpdated = data.optString("lastUpdated", "")
-        )
+            val data = json.getJSONObject("data")
+            EmberTileStatus(
+                userId = data.optString("userId", fallbackUserId),
+                phaseLabel = data.optString("phaseLabel", "Ready"),
+                engagementSummary = data.optString("engagementSummary", "Ember is synchronized and ready."),
+                riskCount = data.optInt("riskCount", 0),
+                isilmeResonance = data.optDouble("isilmeResonance", 0.0),
+                lastUpdated = data.optString("lastUpdated", "")
+            )
+        } catch (_: Exception) {
+            null
+        }
     }
 }

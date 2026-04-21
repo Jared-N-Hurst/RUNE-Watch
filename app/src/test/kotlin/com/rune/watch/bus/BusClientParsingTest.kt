@@ -5,6 +5,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlinx.coroutines.runBlocking
 
 class BusClientParsingTest {
 
@@ -97,4 +98,55 @@ class BusClientParsingTest {
         assertEquals("integrating", parsed.convergenceState)
         assertEquals(5, parsed.awakenedFragmentsCount)
     }
+
+      @Test
+      fun retryPolicy_returnsValueAfterRetry() = runBlocking {
+        var attempts = 0
+        val result = runWithRetry(maxAttempts = 3) {
+          attempts += 1
+          if (attempts < 2) null else "ok"
+        }
+
+        assertEquals("ok", result)
+        assertEquals(2, attempts)
+      }
+
+      @Test
+      fun retryPolicy_returnsNullAfterAllAttemptsFail() = runBlocking {
+        var attempts = 0
+        val result = runWithRetry(maxAttempts = 2) {
+          attempts += 1
+          null
+        }
+
+        assertNull(result)
+        assertEquals(2, attempts)
+      }
+
+      @Test
+      fun emberStatusClient_handlesPartialPayloadWithDefaults() {
+        val client = EmberStatusClient()
+        val parsed = client.parseTileStatusBody(
+          """
+          {
+            "ok": true,
+            "data": {
+            "userId": "u-3"
+            }
+          }
+          """.trimIndent(),
+          fallbackUserId = "fallback"
+        )
+
+        assertNotNull(parsed)
+        assertEquals("Ready", parsed.phaseLabel)
+        assertEquals(0, parsed.riskCount)
+      }
+
+      @Test
+      fun identityMapClient_returnsNullForInvalidJson() {
+        val client = IdentityMapClient()
+        val parsed = client.parseCompactBody("not-json", fallbackUserId = "fallback")
+        assertNull(parsed)
+      }
 }

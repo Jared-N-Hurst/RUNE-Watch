@@ -39,7 +39,7 @@ class IdentityMapClient {
         userId: String,
         authToken: String,
     ): CompactIdentityMap? = withContext(Dispatchers.IO) {
-        try {
+        runWithRetry(maxAttempts = 2) {
             val url = "$IDENTITY_API_BASE_URL/api/identity/map?userId=${userId}&compact=true"
             val req = Request.Builder()
                 .url(url)
@@ -48,26 +48,28 @@ class IdentityMapClient {
                 .build()
 
             val resp = http.newCall(req).execute()
-            if (!resp.isSuccessful) return@withContext null
+            if (!resp.isSuccessful) return@runWithRetry null
 
-            val body = resp.body?.string() ?: return@withContext null
+            val body = resp.body?.string() ?: return@runWithRetry null
             parseCompactBody(body, userId)
-        } catch (_: Exception) {
-            null
         }
     }
 
     internal fun parseCompactBody(body: String, fallbackUserId: String): CompactIdentityMap? {
-        val json = JSONObject(body)
-        if (!json.optBoolean("ok", false)) return null
+        return try {
+            val json = JSONObject(body)
+            if (!json.optBoolean("ok", false)) return null
 
-        val data = json.getJSONObject("data")
-        return CompactIdentityMap(
-            userId = data.optString("userId", fallbackUserId),
-            convergenceState = data.optString("convergenceState", "dormant"),
-            isilmeResonance = data.optDouble("isilmeResonance", 0.0),
-            readerInitiationLevel = data.optInt("readerInitiationLevel", 0),
-            awakenedFragmentsCount = data.optInt("awakenedFragmentsCount", 0),
-        )
+            val data = json.getJSONObject("data")
+            CompactIdentityMap(
+                userId = data.optString("userId", fallbackUserId),
+                convergenceState = data.optString("convergenceState", "dormant"),
+                isilmeResonance = data.optDouble("isilmeResonance", 0.0),
+                readerInitiationLevel = data.optInt("readerInitiationLevel", 0),
+                awakenedFragmentsCount = data.optInt("awakenedFragmentsCount", 0),
+            )
+        } catch (_: Exception) {
+            null
+        }
     }
 }
