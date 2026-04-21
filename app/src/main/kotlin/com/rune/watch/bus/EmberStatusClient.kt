@@ -39,20 +39,24 @@ class EmberStatusClient {
             if (!resp.isSuccessful) return@withContext null
 
             val body = resp.body?.string() ?: return@withContext null
-            val json = JSONObject(body)
-            if (!json.optBoolean("ok", false)) return@withContext null
-
-            val data = json.getJSONObject("data")
-            EmberTileStatus(
-                userId = data.optString("userId", userId),
-                phaseLabel = data.optString("phaseLabel", "Ready"),
-                engagementSummary = data.optString("engagementSummary", "Ember is synchronized and ready."),
-                riskCount = data.optInt("riskCount", 0),
-                isilmeResonance = data.optDouble("isilmeResonance", 0.0),
-                lastUpdated = data.optString("lastUpdated", "")
-            )
+            parseTileStatusBody(body, userId)
         } catch (_: Exception) {
             null
         }
+    }
+
+    internal fun parseTileStatusBody(body: String, fallbackUserId: String): EmberTileStatus? {
+        val json = JSONObject(body)
+        if (!json.optBoolean("ok", false)) return null
+
+        val data = json.getJSONObject("data")
+        return EmberTileStatus(
+            userId = data.optString("userId", fallbackUserId),
+            phaseLabel = data.optString("phaseLabel", "Ready"),
+            engagementSummary = data.optString("engagementSummary", "Ember is synchronized and ready."),
+            riskCount = data.optInt("riskCount", 0),
+            isilmeResonance = data.optDouble("isilmeResonance", 0.0),
+            lastUpdated = data.optString("lastUpdated", "")
+        )
     }
 }

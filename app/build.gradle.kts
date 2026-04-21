@@ -67,4 +67,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.datastore.preferences)
+
+    testImplementation(kotlin("test"))
+    testImplementation("org.json:json:20240303")
 }

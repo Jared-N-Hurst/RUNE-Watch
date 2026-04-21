@@ -172,22 +172,12 @@ class DeviceBusClient(private val context: Context) {
     }
 
     private fun handleMessage(text: String) {
-        runCatching {
-            val msg = JSONObject(text)
-            when (msg.optString("type")) {
-                "pong" -> { /* heartbeat ack */ }
-                "command" -> {
-                    when (val intent = msg.optString("intent")) {
-                        "ring_update" -> _ringUpdate.value = msg.optString("payload")
-                        "ember_state" -> _emberState.value = msg.optJSONObject("payload")
-                            ?.optString("expression") ?: ""
-                        else -> {
-                            // Route to screen as generic state update if recognizable
-                            if (intent.isNotEmpty()) _emberState.value = intent
-                        }
-                    }
-                }
-            }
+        val parsed = parseDeviceBusMessage(text)
+        if (parsed.ringUpdate != null) {
+            _ringUpdate.value = parsed.ringUpdate
+        }
+        if (parsed.emberState != null) {
+            _emberState.value = parsed.emberState
         }
     }
 

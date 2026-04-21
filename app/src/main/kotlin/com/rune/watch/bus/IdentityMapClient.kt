@@ -51,19 +51,23 @@ class IdentityMapClient {
             if (!resp.isSuccessful) return@withContext null
 
             val body = resp.body?.string() ?: return@withContext null
-            val json = JSONObject(body)
-            if (!json.optBoolean("ok", false)) return@withContext null
-
-            val data = json.getJSONObject("data")
-            CompactIdentityMap(
-                userId = data.optString("userId", userId),
-                convergenceState = data.optString("convergenceState", "dormant"),
-                isilmeResonance = data.optDouble("isilmeResonance", 0.0),
-                readerInitiationLevel = data.optInt("readerInitiationLevel", 0),
-                awakenedFragmentsCount = data.optInt("awakenedFragmentsCount", 0),
-            )
+            parseCompactBody(body, userId)
         } catch (_: Exception) {
             null
         }
+    }
+
+    internal fun parseCompactBody(body: String, fallbackUserId: String): CompactIdentityMap? {
+        val json = JSONObject(body)
+        if (!json.optBoolean("ok", false)) return null
+
+        val data = json.getJSONObject("data")
+        return CompactIdentityMap(
+            userId = data.optString("userId", fallbackUserId),
+            convergenceState = data.optString("convergenceState", "dormant"),
+            isilmeResonance = data.optDouble("isilmeResonance", 0.0),
+            readerInitiationLevel = data.optInt("readerInitiationLevel", 0),
+            awakenedFragmentsCount = data.optInt("awakenedFragmentsCount", 0),
+        )
     }
 }
