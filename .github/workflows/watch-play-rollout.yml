@@ -1,0 +1,85 @@
+name: Watch Play Rollout
+
+on:
+  push:
+    branches:
+      - release/watch
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build artifacts only without Play upload
+        required: false
+        default: true
+        type: boolean
+
+env:
+  JAVA_VERSION: '17'
+
+jobs:
+  build-and-publish-watch:
+    name: Build watch APK and publish internal track
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build release APK with CI versionCode
+        env:
+          RUNE_WATCH_VERSION_CODE: ${{ github.run_number }}
+          WATCH_UPLOAD_KEYSTORE_BASE64: ${{ secrets.WATCH_UPLOAD_KEYSTORE_BASE64 }}
+          WATCH_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.WATCH_UPLOAD_KEYSTORE_PASSWORD }}
+          WATCH_UPLOAD_KEY_ALIAS: ${{ secrets.WATCH_UPLOAD_KEY_ALIAS }}
+          WATCH_UPLOAD_KEY_PASSWORD: ${{ secrets.WATCH_UPLOAD_KEY_PASSWORD }}
+        run: |
+          mkdir -p app
+          if [ -n "$WATCH_UPLOAD_KEYSTORE_BASE64" ]; then
+            echo "$WATCH_UPLOAD_KEYSTORE_BASE64" | base64 --decode > app/watch-upload.jks
+            cat <<'EOF' >> gradle.properties
+            RUNE_WATCH_RELEASE_STORE_FILE=watch-upload.jks
+            RUNE_WATCH_RELEASE_STORE_PASSWORD=${WATCH_UPLOAD_KEYSTORE_PASSWORD}
+            RUNE_WATCH_RELEASE_KEY_ALIAS=${WATCH_UPLOAD_KEY_ALIAS}
+            RUNE_WATCH_RELEASE_KEY_PASSWORD=${WATCH_UPLOAD_KEY_PASSWORD}
+            EOF
+          fi
+          ./gradlew :app:assembleRelease
+
+      - name: Locate release APK
+        id: output
+        run: |
+          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          if [ -z "$APK" ]; then echo "No release APK found"; exit 1; fi
+          echo "apk=$APK" >> $GITHUB_OUTPUT
+
+      - name: Upload CI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: watch-play-rollout
+          path: ${{ steps.output.outputs.apk }}
+          if-no-files-found: error
+
+      - name: Upload watch APK to Google Play internal track
+        if: ${{ (github.event_name == 'push' || inputs.dry_run == false) && secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' && secrets.WATCH_PLAY_PACKAGE_NAME != '' }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ secrets.WATCH_PLAY_PACKAGE_NAME }}
+          releaseFiles: ${{ steps.output.outputs.apk }}
+          track: internal
+          status: completed
+
+      - name: Dry run note
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
+        run: |
+          echo "Dry run requested: watch APK was built, Play upload intentionally skipped."

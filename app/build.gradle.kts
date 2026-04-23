@@ -9,18 +9,41 @@ android {
     namespace = "com.rune.watch"
     compileSdk = 35
 
+    val ciVersionCode =
+        System.getenv("RUNE_WATCH_VERSION_CODE")?.toIntOrNull()
+            ?: System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
+
     defaultConfig {
         applicationId = "com.rune.watch"
         minSdk = 30          // WearOS 3.x minimum
         targetSdk = 35
-        versionCode = 1
+        versionCode = ciVersionCode ?: 1
         versionName = "0.1.0"
+    }
+
+    val releaseStoreFile = providers.gradleProperty("RUNE_WATCH_RELEASE_STORE_FILE").orNull
+    val releaseStorePassword = providers.gradleProperty("RUNE_WATCH_RELEASE_STORE_PASSWORD").orNull
+    val releaseKeyAlias = providers.gradleProperty("RUNE_WATCH_RELEASE_KEY_ALIAS").orNull
+    val releaseKeyPassword = providers.gradleProperty("RUNE_WATCH_RELEASE_KEY_PASSWORD").orNull
+
+    signingConfigs {
+        if (!releaseStoreFile.isNullOrBlank()) {
+            create("release") {
+                storeFile = file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            if (signingConfigs.findByName("release") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -39,6 +62,11 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    lint {
+        // Workaround for AGP/Kotlin analyzer incompatibility in CI release analysis.
+        disable += "NullSafeMutableLiveData"
     }
 }
 
