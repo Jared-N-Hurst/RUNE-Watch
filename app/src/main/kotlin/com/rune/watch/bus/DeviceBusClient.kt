@@ -174,6 +174,16 @@ class DeviceBusClient(private val context: Context) {
     }
 
     private fun handleMessage(text: String) {
+        runCatching {
+            val msg = JSONObject(text)
+            if (msg.optString("type") == "command") {
+                val commandId = msg.optString("commandId")
+                if (commandId.isNotBlank()) {
+                    scope.launch { acknowledgeCommand(commandId, "received") }
+                }
+            }
+        }
+
         val parsed = parseDeviceBusMessage(text)
         if (parsed.ringUpdate != null) {
             _ringUpdate.value = parsed.ringUpdate
@@ -204,6 +214,25 @@ class DeviceBusClient(private val context: Context) {
         context.dataStore.edit {
             it[KEY_USER_ID]    = userId
             it[KEY_AUTH_TOKEN] = authToken
+        }
+    }
+
+    private suspend fun acknowledgeCommand(commandId: String, status: String) {
+        if (userId.isBlank() || authToken.isBlank() || deviceId.isBlank()) return
+        runCatching {
+            val body = JSONObject().apply {
+                put("deviceId", deviceId)
+                put("commandId", commandId)
+                put("status", status)
+            }.toString()
+
+            val req = Request.Builder()
+                .url("$API_BASE_URL/api/device/command/ack?userId=$userId")
+                .addHeader("Authorization", "Bearer $authToken")
+                .post(body.toRequestBody("application/json".toMediaType()))
+                .build()
+
+            http.newCall(req).execute().use { }
         }
     }
 }
