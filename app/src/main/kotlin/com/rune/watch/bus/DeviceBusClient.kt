@@ -55,6 +55,7 @@ class DeviceBusClient(private val context: Context) {
 
     private var webSocket: WebSocket? = null
     private var reconnectJob: Job? = null
+    private var heartbeatJob: Job? = null
     private var deviceId: String = ""
     private var userId: String = ""
     private var authToken: String = ""
@@ -149,6 +150,7 @@ class DeviceBusClient(private val context: Context) {
         webSocket = http.newWebSocket(req, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
                 _connected.value = true
+                startHeartbeat()
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
@@ -161,11 +163,13 @@ class DeviceBusClient(private val context: Context) {
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 _connected.value = false
+                stopHeartbeat()
                 if (cont.isActive) cont.resume(Unit) {}
             }
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 _connected.value = false
+                stopHeartbeat()
                 if (cont.isActive) cont.resume(Unit) {}
             }
         })
@@ -228,6 +232,38 @@ class DeviceBusClient(private val context: Context) {
 
             val req = Request.Builder()
                 .url("$API_BASE_URL/api/device/command/ack?userId=$userId")
+                .addHeader("Authorization", "Bearer $authToken")
+                .post(body.toRequestBody("application/json".toMediaType()))
+                .build()
+
+            http.newCall(req).execute().use { }
+        }
+    }
+
+    private fun startHeartbeat() {
+        stopHeartbeat()
+        heartbeatJob = scope.launch {
+            while (isActive) {
+                delay(30_000L) // 30 seconds
+                emitHeartbeat()
+            }
+        }
+    }
+
+    private fun stopHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = null
+    }
+
+    private suspend fun emitHeartbeat() {
+        if (userId.isBlank() || authToken.isBlank() || deviceId.isBlank()) return
+        runCatching {
+            val body = JSONObject().apply {
+                put("deviceId", deviceId)
+            }.toString()
+
+            val req = Request.Builder()
+                .url("$API_BASE_URL/api/device/heartbeat?userId=$userId")
                 .addHeader("Authorization", "Bearer $authToken")
                 .post(body.toRequestBody("application/json".toMediaType()))
                 .build()
