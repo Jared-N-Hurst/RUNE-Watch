@@ -122,6 +122,8 @@ class DeviceBusClient(private val context: Context) {
                 put("platform",     "wearos")
                 put("capabilities", org.json.JSONArray(listOf("notifications", "haptics")))
                 put("label",        "Galaxy Watch")
+                put("deviceType",   "watch")
+                put("trustLevel",   "personal")
             }.toString()
 
             val req = Request.Builder()
