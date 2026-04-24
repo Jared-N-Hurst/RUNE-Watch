@@ -11,6 +11,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,6 +29,8 @@ import com.rune.watch.bus.DeviceBusService
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
@@ -33,8 +39,11 @@ fun SettingsScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val serviceRunning by DeviceBusRuntime.serviceRunning.collectAsState()
     val lastReconnectAttemptMs by DeviceBusRuntime.lastReconnectAttemptMs.collectAsState()
+    var actionLocked by remember { mutableStateOf(false) }
+    var showReconnectConfirm by remember { mutableStateOf(false) }
 
     val reconnectText = lastReconnectAttemptMs?.let {
         val fmt = SimpleDateFormat("HH:mm:ss", Locale.US)
@@ -45,6 +54,19 @@ fun SettingsScreen(
         !paired -> "Stop disabled until pairing is complete"
         !serviceRunning -> "Service already stopped"
         else -> null
+    }
+
+    fun runDebounced(action: () -> Unit) {
+        if (actionLocked) return
+        actionLocked = true
+        scope.launch {
+            try {
+                action()
+            } finally {
+                delay(1_200L)
+                actionLocked = false
+            }
+        }
     }
 
     Column(
@@ -85,13 +107,43 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(2.dp))
 
-        Button(onClick = { DeviceBusService.reconnect(context) }) {
-            Text("Reconnect")
+        if (showReconnectConfirm) {
+            Text(
+                text = "Confirm reconnect?",
+                fontSize = 10.sp,
+                color = Color(0xFFFFCC80),
+                textAlign = TextAlign.Center,
+            )
+            Button(
+                onClick = {
+                    showReconnectConfirm = false
+                    runDebounced { DeviceBusService.reconnect(context) }
+                },
+                enabled = !actionLocked,
+            ) {
+                Text("Confirm Reconnect")
+            }
+            Button(
+                onClick = { showReconnectConfirm = false },
+                enabled = !actionLocked,
+            ) {
+                Text("Cancel")
+            }
+        } else {
+            Button(
+                onClick = { showReconnectConfirm = true },
+                enabled = !actionLocked,
+            ) {
+                Text("Reconnect")
+            }
         }
 
         Button(
-            onClick = { DeviceBusService.stop(context) },
-            enabled = stopDisabledReason == null,
+            onClick = {
+                showReconnectConfirm = false
+                runDebounced { DeviceBusService.stop(context) }
+            },
+            enabled = stopDisabledReason == null && !actionLocked,
         ) {
             Text("Stop Service")
         }
@@ -105,8 +157,23 @@ fun SettingsScreen(
             )
         }
 
-        Button(onClick = { DeviceBusService.start(context) }) {
+        Button(
+            onClick = {
+                showReconnectConfirm = false
+                runDebounced { DeviceBusService.start(context) }
+            },
+            enabled = !actionLocked,
+        ) {
             Text("Start Service")
+        }
+
+        if (actionLocked) {
+            Text(
+                text = "Control lock active...",
+                fontSize = 10.sp,
+                color = Color(0xFF90CAF9),
+                textAlign = TextAlign.Center,
+            )
         }
 
         Button(onClick = onBack) {
