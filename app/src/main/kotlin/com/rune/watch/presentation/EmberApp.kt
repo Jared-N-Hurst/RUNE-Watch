@@ -43,7 +43,8 @@ fun EmberApp(busClient: DeviceBusClient) {
                     },
                     onSendCommand = { intent, payload ->
                         busClient.sendCommand(intent, payload)
-                    }
+                    },
+                    busClient = busClient,
                 )
             }
 

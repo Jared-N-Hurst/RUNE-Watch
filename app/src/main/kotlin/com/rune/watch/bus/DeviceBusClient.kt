@@ -59,6 +59,9 @@ class DeviceBusClient(private val context: Context) {
     private val _ringUpdate = MutableStateFlow<String?>(null)
     val ringUpdate: StateFlow<String?> = _ringUpdate.asStateFlow()
 
+    private val _currentNotification = MutableStateFlow<ParsedNotification?>(null)
+    val currentNotification: StateFlow<ParsedNotification?> = _currentNotification.asStateFlow()
+
     private val _paired = MutableStateFlow(false)
     val paired: StateFlow<Boolean> = _paired.asStateFlow()
 
@@ -132,6 +135,28 @@ class DeviceBusClient(private val context: Context) {
 
                 val req = Request.Builder()
                     .url("$API_BASE_URL/api/rune-watch/biometric?userId=$userId")
+                    .addHeader("Authorization", "Bearer $authToken")
+                    .post(body.toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                http.newCall(req).execute().use { it.isSuccessful }
+            }.getOrDefault(false)
+        }
+    }
+
+    suspend fun respondToNotificationAction(notificationId: String, actionId: String): Boolean {
+        if (userId.isBlank() || authToken.isBlank()) return false
+
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val body = JSONObject().apply {
+                    put("notificationId", notificationId)
+                    put("actionId", actionId)
+                    put("timestamp", System.currentTimeMillis())
+                }.toString()
+
+                val req = Request.Builder()
+                    .url("$API_BASE_URL/api/rune-watch/action?userId=$userId")
                     .addHeader("Authorization", "Bearer $authToken")
                     .post(body.toRequestBody("application/json".toMediaType()))
                     .build()
@@ -239,6 +264,9 @@ class DeviceBusClient(private val context: Context) {
         if (parsed.emberState != null) {
             _emberState.value = parsed.emberState
         }
+        if (parsed.notification != null) {
+            _currentNotification.value = parsed.notification
+        }
     }
 
     private suspend fun loadCredentials() {
@@ -282,6 +310,7 @@ class DeviceBusClient(private val context: Context) {
         _userIdState.value = ""
         _paired.value = false
         _pairingSession.value = null
+        _currentNotification.value = null
     }
 
     suspend fun ensurePairingSession(forceRefresh: Boolean = false): PairingSession {
