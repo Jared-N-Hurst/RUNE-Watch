@@ -13,9 +13,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.sin
+import kotlin.math.cos
 import kotlin.math.PI
 
 /**
@@ -23,6 +25,12 @@ import kotlin.math.PI
  *
  * Renders Katiah concept glyphs (being, knowledge, unity, etc.) as animated vector graphics.
  * On the watch, we render a simplified "being" glyph representing Ember's presence.
+ *
+ * Animation states:
+ * - disconnected: dim pulse, faint color
+ * - connected+idle: normal pulse (3.1s cycle)
+ * - connected+thinking: orbit animation (rotating outer rings, 2.35s cycle)
+ * - connected+alert: rapid pulse (1.65s cycle, full energy)
  */
 
 /**
@@ -32,6 +40,7 @@ import kotlin.math.PI
  * @param pulseStrength Pulse animation strength (0.62 for idle, 1.0 for active)
  * @param pulseDuration Duration of pulse animation in milliseconds
  * @param size Size of the glyph (default 80.dp for watch)
+ * @param connected Connection state (affects animation intensity)
  * @param modifier Modifier to apply to the composable
  */
 @Composable
@@ -40,9 +49,14 @@ fun KatiahGlyph(
     pulseStrength: Float = 0.62f,
     pulseDuration: Int = 3100, // idle pulse: 3.1s
     size: Dp = 80.dp,
+    connected: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "glyph_pulse")
+    
+    // Determine base opacity from connection state
+    val baseOpacity = if (connected) 1.0f else 0.5f
+    val effectiveStrength = if (connected) pulseStrength else pulseStrength * 0.4f
     
     // Pulse animation: oscillate from 0 to 1
     val pulseFraction by infiniteTransition.animateFloat(
@@ -55,14 +69,25 @@ fun KatiahGlyph(
         label = "pulse_fraction"
     )
     
+    // Orbit animation for thinking state: continuous rotation
+    val orbitRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(pulseDuration, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "orbit_rotation"
+    )
+    
     // Calculate scale: oscillate between 1 - 0.012*strength and 1 + 0.06*strength
-    val scaleMin = 1f - (0.012f * pulseStrength)
-    val scaleMax = 1f + (0.06f * pulseStrength)
+    val scaleMin = 1f - (0.012f * effectiveStrength)
+    val scaleMax = 1f + (0.06f * effectiveStrength)
     val scale = scaleMin + (pulseFraction * (scaleMax - scaleMin))
     
     // Calculate opacity: 0.84 at start/end, 1.0 at peak (using sine for smooth curve)
     val opacityPulse = sin(pulseFraction * PI).toFloat()
-    val opacity = 0.84f + (opacityPulse * 0.16f)
+    val opacity = (0.84f + (opacityPulse * 0.16f)) * baseOpacity
     
     Box(
         modifier = modifier.size(size),
@@ -117,6 +142,33 @@ fun KatiahGlyph(
                 strokeWidth = strokeWidth * 0.7f,
                 cap = StrokeCap.Round
             )
+            
+            // Orbit rings for thinking state (connected only)
+            if (connected && pulseStrength > 0.85f) {
+                rotate(orbitRotation, pivot = androidx.compose.ui.geometry.Offset(center, center)) {
+                    // Outer orbit ring at 45°
+                    drawCircle(
+                        color = emotionalColor.copy(alpha = opacity * 0.3f),
+                        radius = radius * 1.3f,
+                        style = Stroke(
+                            width = strokeWidth * 0.4f,
+                            cap = StrokeCap.Round,
+                            join = StrokeJoin.Round
+                        )
+                    )
+                    
+                    // Middle orbit ring at 135°
+                    drawCircle(
+                        color = emotionalColor.copy(alpha = opacity * 0.25f),
+                        radius = radius * 1.6f,
+                        style = Stroke(
+                            width = strokeWidth * 0.3f,
+                            cap = StrokeCap.Round,
+                            join = StrokeJoin.Round
+                        )
+                    )
+                }
+            }
         }
     }
 }

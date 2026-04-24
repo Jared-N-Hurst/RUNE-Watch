@@ -81,7 +81,8 @@ fun EmberScreen(
                 emotionalColor = emotionalColor,
                 pulseStrength = pulseStrength,
                 pulseDuration = pulseDuration,
-                size = 80.dp
+                size = 80.dp,
+                connected = connected
             )
 
             // Current Ember expression / state
