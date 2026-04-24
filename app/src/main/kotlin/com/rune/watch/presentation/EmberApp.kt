@@ -13,6 +13,13 @@ import com.rune.watch.presentation.theme.EmberWatchTheme
 @Composable
 fun EmberApp(busClient: DeviceBusClient) {
     EmberWatchTheme {
+        val paired by busClient.paired.collectAsState()
+
+        if (!paired) {
+            PairingScreen(busClient = busClient)
+            return@EmberWatchTheme
+        }
+
         val navController = rememberSwipeDismissableNavController()
         val connected by busClient.connected.collectAsState()
         val emberState by busClient.emberState.collectAsState()

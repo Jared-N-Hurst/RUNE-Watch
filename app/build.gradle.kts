@@ -95,6 +95,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.datastore.preferences)
+    implementation("com.google.zxing:core:3.5.3")
 
     testImplementation(kotlin("test"))
     testImplementation("org.json:json:20240303")

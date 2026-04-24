@@ -13,6 +13,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import kotlin.random.Random
 
 private val Context.dataStore by preferencesDataStore("ember_prefs")
 
@@ -21,6 +22,13 @@ private val KEY_USER_ID    = stringPreferencesKey("user_id")
 private val KEY_AUTH_TOKEN = stringPreferencesKey("auth_token")
 
 private const val API_BASE_URL = "https://api.rune-systems.com"
+
+data class PairingSession(
+    val deviceId: String,
+    val pairingCode: String,
+    val timestamp: Long,
+    val qrPayload: String,
+)
 
 /**
  * WebSocket client that connects this WearOS device to the RUNE-Backend device bus.
@@ -51,6 +59,12 @@ class DeviceBusClient(private val context: Context) {
     private val _ringUpdate = MutableStateFlow<String?>(null)
     val ringUpdate: StateFlow<String?> = _ringUpdate.asStateFlow()
 
+    private val _paired = MutableStateFlow(false)
+    val paired: StateFlow<Boolean> = _paired.asStateFlow()
+
+    private val _pairingSession = MutableStateFlow<PairingSession?>(null)
+    val pairingSession: StateFlow<PairingSession?> = _pairingSession.asStateFlow()
+
     // ── Internal ──────────────────────────────────────────────────────────────
 
     private var webSocket: WebSocket? = null
@@ -59,6 +73,10 @@ class DeviceBusClient(private val context: Context) {
     private var deviceId: String = ""
     private var userId: String = ""
     private var authToken: String = ""
+
+    init {
+        scope.launch { loadCredentials() }
+    }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -202,6 +220,7 @@ class DeviceBusClient(private val context: Context) {
             deviceId  = prefs[KEY_DEVICE_ID]  ?: generateAndSaveDeviceId()
             userId    = prefs[KEY_USER_ID]    ?: ""
             authToken = prefs[KEY_AUTH_TOKEN] ?: ""
+            _paired.value = userId.isNotBlank() && authToken.isNotBlank()
         }
     }
 
@@ -219,6 +238,73 @@ class DeviceBusClient(private val context: Context) {
             it[KEY_USER_ID]    = userId
             it[KEY_AUTH_TOKEN] = authToken
         }
+        _paired.value = true
+        _pairingSession.value = null
+    }
+
+    suspend fun ensurePairingSession(forceRefresh: Boolean = false): PairingSession {
+        loadCredentials()
+
+        val current = _pairingSession.value
+        if (!forceRefresh && current != null && (System.currentTimeMillis() - current.timestamp) < 60_000L) {
+            return current
+        }
+
+        val resolvedDeviceId = if (deviceId.isBlank()) generateAndSaveDeviceId() else deviceId
+        val pairingCode = Random.nextInt(0, 1_000_000).toString().padStart(6, '0')
+        val timestamp = System.currentTimeMillis()
+        val qrPayload = JSONObject()
+            .put("deviceId", resolvedDeviceId)
+            .put("pairingCode", pairingCode)
+            .put("timestamp", timestamp)
+            .toString()
+
+        runCatching {
+            val body = JSONObject().apply {
+                put("deviceId", resolvedDeviceId)
+                put("pairingCode", pairingCode)
+                put("timestamp", timestamp)
+            }.toString()
+
+            val req = Request.Builder()
+                .url("$API_BASE_URL/api/device/pair/register")
+                .post(body.toRequestBody("application/json".toMediaType()))
+                .build()
+            http.newCall(req).execute().use { }
+        }
+
+        val session = PairingSession(
+            deviceId = resolvedDeviceId,
+            pairingCode = pairingCode,
+            timestamp = timestamp,
+            qrPayload = qrPayload,
+        )
+        _pairingSession.value = session
+        return session
+    }
+
+    suspend fun pollPairingStatus(): Boolean {
+        val session = _pairingSession.value ?: return false
+        return runCatching {
+            val url = "$API_BASE_URL/api/device/pair/status?deviceId=${session.deviceId}&pairingCode=${session.pairingCode}"
+            val req = Request.Builder().url(url).get().build()
+            http.newCall(req).execute().use { res ->
+                if (!res.isSuccessful) return@use false
+                val raw = res.body?.string() ?: return@use false
+                val body = JSONObject(raw)
+                if (!body.optBoolean("ok", false)) return@use false
+                val data = body.optJSONObject("data") ?: return@use false
+                val paired = data.optBoolean("paired", false)
+                if (!paired) return@use false
+
+                val pairedUserId = data.optString("userId")
+                val watchAuthToken = data.optString("watchAuthToken")
+                if (pairedUserId.isBlank() || watchAuthToken.isBlank()) return@use false
+
+                saveCredentials(pairedUserId, watchAuthToken)
+                true
+            }
+        }.getOrDefault(false)
     }
 
     private suspend fun acknowledgeCommand(commandId: String, status: String) {
