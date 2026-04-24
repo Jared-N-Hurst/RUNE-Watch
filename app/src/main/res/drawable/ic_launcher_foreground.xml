@@ -1,0 +1,19 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer glow ring -->
+    <path
+        android:fillColor="#33F5A623"
+        android:pathData="M54,18 C34.12,18 18,34.12 18,54 C18,73.88 34.12,90 54,90 C73.88,90 90,73.88 90,54 C90,34.12 73.88,18 54,18 Z M54,24 C70.57,24 84,37.43 84,54 C84,70.57 70.57,84 54,84 C37.43,84 24,70.57 24,54 C24,37.43 37.43,24 54,24 Z" />
+    <!-- Ember flame core -->
+    <path
+        android:fillColor="#F5A623"
+        android:pathData="M54,30 C54,30 42,46 42,56 C42,62.63 47.37,68 54,68 C60.63,68 66,62.63 66,56 C66,46 54,30 54,30 Z" />
+    <!-- Inner bright point -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,46 C54,46 48,54 48,58 C48,61.31 50.69,64 54,64 C57.31,64 60,61.31 60,58 C60,54 54,46 54,46 Z"
+        android:fillAlpha="0.8" />
+</vector>
