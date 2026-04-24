@@ -10,11 +10,16 @@ import android.content.Intent
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.rune.watch.health.HealthMonitor
+import com.rune.watch.settings.WatchSettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -57,6 +62,7 @@ class DeviceBusService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var connectedJob: Job? = null
+    private var biometricJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -67,6 +73,8 @@ class DeviceBusService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                biometricJob?.cancel()
+                biometricJob = null
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 DeviceBusRuntime.markServiceRunning(false)
@@ -77,6 +85,7 @@ class DeviceBusService : Service() {
                 startForeground(NOTIFICATION_ID, buildNotification(connected = false))
                 DeviceBusRuntime.restart(applicationContext)
                 observeConnectionState()
+                startBiometricLoop()
             }
 
             else -> {
@@ -84,6 +93,7 @@ class DeviceBusService : Service() {
                 DeviceBusRuntime.start(applicationContext)
                 DeviceBusRuntime.markServiceRunning(true)
                 observeConnectionState()
+                startBiometricLoop()
             }
         }
 
@@ -94,6 +104,8 @@ class DeviceBusService : Service() {
         super.onDestroy()
         connectedJob?.cancel()
         connectedJob = null
+        biometricJob?.cancel()
+        biometricJob = null
         serviceScope.cancel()
         DeviceBusRuntime.stop()
         DeviceBusRuntime.markServiceRunning(false)
@@ -108,6 +120,23 @@ class DeviceBusService : Service() {
                 DeviceBusRuntime.logConnectionState(connected)
                 getSystemService(NotificationManager::class.java)
                     .notify(NOTIFICATION_ID, buildNotification(connected))
+            }
+        }
+    }
+
+    private fun startBiometricLoop() {
+        if (biometricJob != null) return
+
+        biometricJob = serviceScope.launch {
+            while (isActive) {
+                val enabled = WatchSettingsStore.biometricIngestEnabledFlow(applicationContext).first()
+                val client = DeviceBusRuntime.client(applicationContext)
+                if (enabled && client.paired.value) {
+                    val snapshot = HealthMonitor.readSnapshot(applicationContext)
+                    val uploaded = client.uploadBiometricSnapshot(snapshot.toApiData())
+                    DeviceBusRuntime.logBiometricUpload(uploaded)
+                }
+                delay(20_000L)
             }
         }
     }

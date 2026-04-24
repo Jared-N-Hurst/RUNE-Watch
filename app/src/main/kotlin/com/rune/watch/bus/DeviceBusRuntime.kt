@@ -103,6 +103,10 @@ object DeviceBusRuntime {
         logHealthEvent("bus", if (connected) "bus connected" else "bus disconnected")
     }
 
+    fun logBiometricUpload(success: Boolean) {
+        logHealthEvent("biometric", if (success) "snapshot uploaded" else "snapshot upload failed")
+    }
+
     fun clearHealthEvents() {
         _healthEvents.value = emptyList()
         logHealthEvent("control", "health snapshot cleared")

@@ -121,6 +121,26 @@ class DeviceBusClient(private val context: Context) {
         }
     }
 
+    suspend fun uploadBiometricSnapshot(data: Map<String, Any>): Boolean {
+        if (userId.isBlank() || authToken.isBlank()) return false
+
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val body = JSONObject().apply {
+                    put("data", JSONObject(data))
+                }.toString()
+
+                val req = Request.Builder()
+                    .url("$API_BASE_URL/api/rune-watch/biometric?userId=$userId")
+                    .addHeader("Authorization", "Bearer $authToken")
+                    .post(body.toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                http.newCall(req).execute().use { it.isSuccessful }
+            }.getOrDefault(false)
+        }
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private fun startReconnectLoop() {
