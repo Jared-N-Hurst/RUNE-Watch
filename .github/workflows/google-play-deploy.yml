@@ -1,0 +1,59 @@
+name: Deploy Watch to Google Play (Internal Testing)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'internal'
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v2
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.RUNE_WATCH_KEYSTORE_B64 }}" | base64 -d > ~/.android/rune-watch-release.keystore
+        shell: bash
+
+      - name: Build release AAB
+        run: |
+          ./gradlew bundleRelease \
+            -PRUNE_WATCH_RELEASE_STORE_PASSWORD="${{ secrets.RUNE_WATCH_KEYSTORE_PASSWORD }}" \
+            -PRUNE_WATCH_RELEASE_KEY_PASSWORD="${{ secrets.RUNE_WATCH_KEY_PASSWORD }}" \
+            -PRUNE_WATCH_RELEASE_KEY_ALIAS="rune-watch-release" \
+            -PRUNE_WATCH_RELEASE_STORE_FILE="~/.android/rune-watch-release.keystore"
+        working-directory: ./app
+        env:
+          RUNE_WATCH_KEYSTORE_PASSWORD: ${{ secrets.RUNE_WATCH_KEYSTORE_PASSWORD }}
+          RUNE_WATCH_KEY_PASSWORD: ${{ secrets.RUNE_WATCH_KEY_PASSWORD }}
+
+      - name: Deploy to Google Play (Watch)
+        uses: r0adkll/upload-google-play@v1.1.1
+        with:
+          serviceAccountJson: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.runesystems.watch
+          releaseFiles: 'app/build/outputs/bundle/release/*.aab'
+          track: ${{ github.event.inputs.release_type || 'internal' }}
+          inAppUpdatePriority: 5
+
+      - name: Clean up keystore
+        if: always()
+        run: rm -f ~/.android/rune-watch-release.keystore
