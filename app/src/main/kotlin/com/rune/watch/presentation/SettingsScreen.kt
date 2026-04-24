@@ -1,6 +1,9 @@
 // Copyright (c) RUNE Systems LLC 2026
 package com.rune.watch.presentation
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -141,6 +144,25 @@ fun SettingsScreen(
                 color = Color(0xFFB0BEC5),
                 textAlign = TextAlign.Center,
             )
+
+            Button(
+                onClick = {
+                    val clipboard = context.getSystemService(ClipboardManager::class.java)
+                    val exported = DeviceBusRuntime.exportHealthSnapshot()
+                    clipboard.setPrimaryClip(ClipData.newPlainText("health_snapshot", exported))
+                    Toast.makeText(context, "Snapshot copied", Toast.LENGTH_SHORT).show()
+                },
+                enabled = !actionLocked,
+            ) {
+                Text("Copy Snapshot")
+            }
+
+            Button(
+                onClick = { DeviceBusRuntime.clearHealthEvents() },
+                enabled = !actionLocked,
+            ) {
+                Text("Clear Snapshot")
+            }
 
             val preview = healthEvents.take(6)
             for (event in preview) {

@@ -103,6 +103,23 @@ object DeviceBusRuntime {
         logHealthEvent("bus", if (connected) "bus connected" else "bus disconnected")
     }
 
+    fun clearHealthEvents() {
+        _healthEvents.value = emptyList()
+        logHealthEvent("control", "health snapshot cleared")
+    }
+
+    fun exportHealthSnapshot(): String {
+        val events = _healthEvents.value
+        if (events.isEmpty()) {
+            return "Health snapshot: empty"
+        }
+
+        val lines = events.map {
+            "${it.atMs}|${it.category}|${it.message}"
+        }
+        return lines.joinToString(separator = "\n")
+    }
+
     private fun recordAction(action: String, result: String) {
         _lastAction.value = action
         _lastActionResult.value = result
