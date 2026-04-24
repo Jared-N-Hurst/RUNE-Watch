@@ -42,6 +42,12 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val serviceRunning by DeviceBusRuntime.serviceRunning.collectAsState()
     val lastReconnectAttemptMs by DeviceBusRuntime.lastReconnectAttemptMs.collectAsState()
+    val startCount by DeviceBusRuntime.startCount.collectAsState()
+    val stopCount by DeviceBusRuntime.stopCount.collectAsState()
+    val reconnectCount by DeviceBusRuntime.reconnectCount.collectAsState()
+    val lastAction by DeviceBusRuntime.lastAction.collectAsState()
+    val lastActionResult by DeviceBusRuntime.lastActionResult.collectAsState()
+    val lastActionAtMs by DeviceBusRuntime.lastActionAtMs.collectAsState()
     var actionLocked by remember { mutableStateOf(false) }
     var showReconnectConfirm by remember { mutableStateOf(false) }
 
@@ -49,6 +55,13 @@ fun SettingsScreen(
         val fmt = SimpleDateFormat("HH:mm:ss", Locale.US)
         "Last reconnect: ${fmt.format(Date(it))}"
     } ?: "Last reconnect: none"
+
+    val lastActionText = lastActionAtMs?.let {
+        val fmt = SimpleDateFormat("HH:mm:ss", Locale.US)
+        val action = lastAction ?: "unknown"
+        val result = lastActionResult ?: "unknown"
+        "Last action: ${action} (${result}) @ ${fmt.format(Date(it))}"
+    } ?: "Last action: none"
 
     val stopDisabledReason = when {
         !paired -> "Stop disabled until pairing is complete"
@@ -100,6 +113,20 @@ fun SettingsScreen(
 
         Text(
             text = reconnectText,
+            fontSize = 10.sp,
+            color = Color(0xFFB0BEC5),
+            textAlign = TextAlign.Center,
+        )
+
+        Text(
+            text = "Start/Stop/Reconnect: ${startCount}/${stopCount}/${reconnectCount}",
+            fontSize = 10.sp,
+            color = Color(0xFFB0BEC5),
+            textAlign = TextAlign.Center,
+        )
+
+        Text(
+            text = lastActionText,
             fontSize = 10.sp,
             color = Color(0xFFB0BEC5),
             textAlign = TextAlign.Center,

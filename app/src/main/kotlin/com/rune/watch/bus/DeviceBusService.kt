@@ -69,6 +69,7 @@ class DeviceBusService : Service() {
             ACTION_STOP -> {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+                DeviceBusRuntime.markServiceRunning(false)
                 return START_NOT_STICKY
             }
 
@@ -81,6 +82,7 @@ class DeviceBusService : Service() {
             else -> {
                 startForeground(NOTIFICATION_ID, buildNotification(connected = false))
                 DeviceBusRuntime.start(applicationContext)
+                DeviceBusRuntime.markServiceRunning(true)
                 observeConnectionState()
             }
         }
