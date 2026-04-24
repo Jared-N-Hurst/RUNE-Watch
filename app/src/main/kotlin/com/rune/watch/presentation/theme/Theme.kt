@@ -3,11 +3,21 @@ package com.rune.watch.presentation.theme
 
 import androidx.compose.runtime.Composable
 import androidx.wear.compose.material.MaterialTheme
+import com.rune.watch.settings.WatchSettingsStore
 
 @Composable
-fun EmberWatchTheme(content: @Composable () -> Unit) {
+fun EmberWatchTheme(
+    themeMode: String = WatchSettingsStore.THEME_GHOST,
+    content: @Composable () -> Unit,
+) {
+    val colors = if (themeMode == WatchSettingsStore.THEME_LIGHT) {
+        EmberWatchLightColors
+    } else {
+        EmberWatchColors
+    }
+
     MaterialTheme(
-        colors = EmberWatchColors,
+        colors = colors,
         typography = EmberWatchTypography,
         content = content
     )

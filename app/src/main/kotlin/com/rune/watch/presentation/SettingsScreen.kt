@@ -27,9 +27,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.Text
+import com.rune.watch.bus.DeviceBusClient
 import com.rune.watch.bus.DeviceBusRuntime
 import com.rune.watch.bus.DeviceBusRuntime.HealthEvent
 import com.rune.watch.bus.DeviceBusService
+import com.rune.watch.settings.WatchSettingsStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -38,6 +40,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
+    busClient: DeviceBusClient,
     paired: Boolean,
     connected: Boolean,
     onBack: () -> Unit,
@@ -53,8 +56,15 @@ fun SettingsScreen(
     val lastActionResult by DeviceBusRuntime.lastActionResult.collectAsState()
     val lastActionAtMs by DeviceBusRuntime.lastActionAtMs.collectAsState()
     val healthEvents by DeviceBusRuntime.healthEvents.collectAsState()
+    val deviceId by busClient.deviceIdState.collectAsState()
+    val userId by busClient.userIdState.collectAsState()
+    val themeMode by WatchSettingsStore.themeModeFlow(context)
+        .collectAsState(initial = WatchSettingsStore.THEME_GHOST)
+    val biometricIngestEnabled by WatchSettingsStore.biometricIngestEnabledFlow(context)
+        .collectAsState(initial = true)
     var actionLocked by remember { mutableStateOf(false) }
     var showReconnectConfirm by remember { mutableStateOf(false) }
+    var showLogoutConfirm by remember { mutableStateOf(false) }
 
     val reconnectText = lastReconnectAttemptMs?.let {
         val fmt = SimpleDateFormat("HH:mm:ss", Locale.US)
@@ -74,7 +84,7 @@ fun SettingsScreen(
         else -> null
     }
 
-    fun runDebounced(action: () -> Unit) {
+    fun runDebounced(action: suspend () -> Unit) {
         if (actionLocked) return
         actionLocked = true
         scope.launch {
@@ -136,6 +146,34 @@ fun SettingsScreen(
             color = Color(0xFFB0BEC5),
             textAlign = TextAlign.Center,
         )
+
+        Text(
+            text = "Device ID: ${deviceId.take(12)}",
+            fontSize = 10.sp,
+            color = Color(0xFFB0BEC5),
+            textAlign = TextAlign.Center,
+        )
+
+        Text(
+            text = if (userId.isBlank()) "User ID: unpaired" else "User ID: ${userId.take(12)}",
+            fontSize = 10.sp,
+            color = Color(0xFFB0BEC5),
+            textAlign = TextAlign.Center,
+        )
+
+        Button(
+            onClick = { runDebounced { WatchSettingsStore.toggleThemeMode(context) } },
+            enabled = !actionLocked,
+        ) {
+            Text("Theme: ${themeLabel(themeMode)}")
+        }
+
+        Button(
+            onClick = { runDebounced { WatchSettingsStore.toggleBiometricIngest(context) } },
+            enabled = !actionLocked,
+        ) {
+            Text(if (biometricIngestEnabled) "Biometric: ON" else "Biometric: OFF")
+        }
 
         if (healthEvents.isNotEmpty()) {
             Text(
@@ -237,6 +275,41 @@ fun SettingsScreen(
             Text("Start Service")
         }
 
+        if (showLogoutConfirm) {
+            Text(
+                text = "Confirm log out?",
+                fontSize = 10.sp,
+                color = Color(0xFFFFCC80),
+                textAlign = TextAlign.Center,
+            )
+            Button(
+                onClick = {
+                    showLogoutConfirm = false
+                    runDebounced {
+                        DeviceBusService.stop(context)
+                        busClient.clearCredentials()
+                        Toast.makeText(context, "Logged out", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                enabled = !actionLocked,
+            ) {
+                Text("Confirm Log Out")
+            }
+            Button(
+                onClick = { showLogoutConfirm = false },
+                enabled = !actionLocked,
+            ) {
+                Text("Cancel")
+            }
+        } else {
+            Button(
+                onClick = { showLogoutConfirm = true },
+                enabled = !actionLocked,
+            ) {
+                Text("Log Out")
+            }
+        }
+
         if (actionLocked) {
             Text(
                 text = "Control lock active...",
@@ -256,4 +329,8 @@ private fun formatHealthEvent(event: HealthEvent): String {
     val fmt = SimpleDateFormat("HH:mm:ss", Locale.US)
     val at = fmt.format(Date(event.atMs))
     return "$at ${event.category}: ${event.message}"
+}
+
+private fun themeLabel(themeMode: String): String {
+    return if (themeMode == WatchSettingsStore.THEME_LIGHT) "Light" else "Ghost"
 }

@@ -4,15 +4,21 @@ package com.rune.watch.presentation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import com.rune.watch.bus.DeviceBusClient
+import com.rune.watch.settings.WatchSettingsStore
 import com.rune.watch.presentation.theme.EmberWatchTheme
 
 @Composable
 fun EmberApp(busClient: DeviceBusClient) {
-    EmberWatchTheme {
+    val context = LocalContext.current
+    val themeMode by WatchSettingsStore.themeModeFlow(context)
+        .collectAsState(initial = WatchSettingsStore.THEME_GHOST)
+
+    EmberWatchTheme(themeMode = themeMode) {
         val paired by busClient.paired.collectAsState()
 
         if (!paired) {
@@ -43,6 +49,7 @@ fun EmberApp(busClient: DeviceBusClient) {
 
             composable("settings") {
                 SettingsScreen(
+                    busClient = busClient,
                     paired = paired,
                     connected = connected,
                     onBack = { navController.popBackStack() },

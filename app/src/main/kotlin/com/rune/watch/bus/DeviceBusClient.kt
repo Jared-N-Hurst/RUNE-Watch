@@ -62,6 +62,12 @@ class DeviceBusClient(private val context: Context) {
     private val _paired = MutableStateFlow(false)
     val paired: StateFlow<Boolean> = _paired.asStateFlow()
 
+    private val _deviceIdState = MutableStateFlow("")
+    val deviceIdState: StateFlow<String> = _deviceIdState.asStateFlow()
+
+    private val _userIdState = MutableStateFlow("")
+    val userIdState: StateFlow<String> = _userIdState.asStateFlow()
+
     private val _pairingSession = MutableStateFlow<PairingSession?>(null)
     val pairingSession: StateFlow<PairingSession?> = _pairingSession.asStateFlow()
 
@@ -220,6 +226,8 @@ class DeviceBusClient(private val context: Context) {
             deviceId  = prefs[KEY_DEVICE_ID]  ?: generateAndSaveDeviceId()
             userId    = prefs[KEY_USER_ID]    ?: ""
             authToken = prefs[KEY_AUTH_TOKEN] ?: ""
+            _deviceIdState.value = deviceId
+            _userIdState.value = userId
             _paired.value = userId.isNotBlank() && authToken.isNotBlank()
         }
     }
@@ -238,7 +246,21 @@ class DeviceBusClient(private val context: Context) {
             it[KEY_USER_ID]    = userId
             it[KEY_AUTH_TOKEN] = authToken
         }
+        _userIdState.value = userId
         _paired.value = true
+        _pairingSession.value = null
+    }
+
+    suspend fun clearCredentials() {
+        this.userId = ""
+        this.authToken = ""
+        context.dataStore.edit {
+            it.remove(KEY_USER_ID)
+            it.remove(KEY_AUTH_TOKEN)
+        }
+        _connected.value = false
+        _userIdState.value = ""
+        _paired.value = false
         _pairingSession.value = null
     }
 

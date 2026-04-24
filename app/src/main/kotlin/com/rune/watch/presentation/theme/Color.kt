@@ -31,3 +31,19 @@ val EmberWatchColors = Colors(
     onSurfaceVariant = Color(0xFFAAAAAA),
     onError          = Color.Black
 )
+
+val EmberWatchLightColors = Colors(
+    primary = Color(0xFF1565C0),
+    primaryVariant = Color(0xFF0D47A1),
+    secondary = Color(0xFF039BE5),
+    secondaryVariant = Color(0xFF0277BD),
+    background = Color(0xFFF4F7FB),
+    surface = Color(0xFFFFFFFF),
+    error = Color(0xFFB00020),
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onBackground = Color(0xFF102338),
+    onSurface = Color(0xFF102338),
+    onSurfaceVariant = Color(0xFF4A627A),
+    onError = Color.White,
+)
