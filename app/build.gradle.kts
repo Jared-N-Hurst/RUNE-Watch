@@ -14,7 +14,7 @@ android {
             ?: System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
 
     defaultConfig {
-        applicationId = "com.rune.watch"
+        applicationId = "com.runesystems.watch"
         minSdk = 30          // WearOS 3.x minimum
         targetSdk = 35
         versionCode = ciVersionCode ?: 1
