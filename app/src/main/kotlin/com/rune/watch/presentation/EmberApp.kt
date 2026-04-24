@@ -43,6 +43,7 @@ fun EmberApp(busClient: DeviceBusClient) {
 
             composable("settings") {
                 SettingsScreen(
+                    paired = paired,
                     connected = connected,
                     onBack = { navController.popBackStack() },
                 )

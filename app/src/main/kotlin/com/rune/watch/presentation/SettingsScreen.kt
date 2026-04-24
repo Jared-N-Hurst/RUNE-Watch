@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -18,14 +20,32 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.Text
+import com.rune.watch.bus.DeviceBusRuntime
 import com.rune.watch.bus.DeviceBusService
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun SettingsScreen(
+    paired: Boolean,
     connected: Boolean,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    val serviceRunning by DeviceBusRuntime.serviceRunning.collectAsState()
+    val lastReconnectAttemptMs by DeviceBusRuntime.lastReconnectAttemptMs.collectAsState()
+
+    val reconnectText = lastReconnectAttemptMs?.let {
+        val fmt = SimpleDateFormat("HH:mm:ss", Locale.US)
+        "Last reconnect: ${fmt.format(Date(it))}"
+    } ?: "Last reconnect: none"
+
+    val stopDisabledReason = when {
+        !paired -> "Stop disabled until pairing is complete"
+        !serviceRunning -> "Service already stopped"
+        else -> null
+    }
 
     Column(
         modifier = Modifier
@@ -49,14 +69,40 @@ fun SettingsScreen(
             textAlign = TextAlign.Center,
         )
 
+        Text(
+            text = if (serviceRunning) "Runtime: Running" else "Runtime: Stopped",
+            fontSize = 10.sp,
+            color = if (serviceRunning) Color(0xFF8BC34A) else Color(0xFFFFA726),
+            textAlign = TextAlign.Center,
+        )
+
+        Text(
+            text = reconnectText,
+            fontSize = 10.sp,
+            color = Color(0xFFB0BEC5),
+            textAlign = TextAlign.Center,
+        )
+
         Spacer(modifier = Modifier.height(2.dp))
 
         Button(onClick = { DeviceBusService.reconnect(context) }) {
             Text("Reconnect")
         }
 
-        Button(onClick = { DeviceBusService.stop(context) }) {
+        Button(
+            onClick = { DeviceBusService.stop(context) },
+            enabled = stopDisabledReason == null,
+        ) {
             Text("Stop Service")
+        }
+
+        if (stopDisabledReason != null) {
+            Text(
+                text = stopDisabledReason,
+                fontSize = 10.sp,
+                color = Color(0xFFFFB74D),
+                textAlign = TextAlign.Center,
+            )
         }
 
         Button(onClick = { DeviceBusService.start(context) }) {

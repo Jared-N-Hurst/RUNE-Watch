@@ -61,6 +61,7 @@ class DeviceBusService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        DeviceBusRuntime.markServiceRunning(true)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -93,6 +94,7 @@ class DeviceBusService : Service() {
         connectedJob = null
         serviceScope.cancel()
         DeviceBusRuntime.stop()
+        DeviceBusRuntime.markServiceRunning(false)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
