@@ -105,6 +105,7 @@ class DeviceBusService : Service() {
         if (connectedJob != null) return
         connectedJob = serviceScope.launch {
             DeviceBusRuntime.client(applicationContext).connected.collect { connected ->
+                DeviceBusRuntime.logConnectionState(connected)
                 getSystemService(NotificationManager::class.java)
                     .notify(NOTIFICATION_ID, buildNotification(connected))
             }

@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.Text
 import com.rune.watch.bus.DeviceBusRuntime
+import com.rune.watch.bus.DeviceBusRuntime.HealthEvent
 import com.rune.watch.bus.DeviceBusService
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -48,6 +49,7 @@ fun SettingsScreen(
     val lastAction by DeviceBusRuntime.lastAction.collectAsState()
     val lastActionResult by DeviceBusRuntime.lastActionResult.collectAsState()
     val lastActionAtMs by DeviceBusRuntime.lastActionAtMs.collectAsState()
+    val healthEvents by DeviceBusRuntime.healthEvents.collectAsState()
     var actionLocked by remember { mutableStateOf(false) }
     var showReconnectConfirm by remember { mutableStateOf(false) }
 
@@ -132,6 +134,25 @@ fun SettingsScreen(
             textAlign = TextAlign.Center,
         )
 
+        if (healthEvents.isNotEmpty()) {
+            Text(
+                text = "Health snapshot",
+                fontSize = 10.sp,
+                color = Color(0xFFB0BEC5),
+                textAlign = TextAlign.Center,
+            )
+
+            val preview = healthEvents.take(6)
+            for (event in preview) {
+                Text(
+                    text = formatHealthEvent(event),
+                    fontSize = 9.sp,
+                    color = Color(0xFF90A4AE),
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(2.dp))
 
         if (showReconnectConfirm) {
@@ -207,4 +228,10 @@ fun SettingsScreen(
             Text("Back")
         }
     }
+}
+
+private fun formatHealthEvent(event: HealthEvent): String {
+    val fmt = SimpleDateFormat("HH:mm:ss", Locale.US)
+    val at = fmt.format(Date(event.atMs))
+    return "$at ${event.category}: ${event.message}"
 }

@@ -11,6 +11,14 @@ import kotlinx.coroutines.flow.asStateFlow
  * connection while UI layers only observe/send through the same client instance.
  */
 object DeviceBusRuntime {
+    data class HealthEvent(
+        val atMs: Long,
+        val category: String,
+        val message: String,
+    )
+
+    private const val HEALTH_EVENT_LIMIT = 20
+
     private var clientInstance: DeviceBusClient? = null
     private var started = false
 
@@ -38,6 +46,9 @@ object DeviceBusRuntime {
     private val _lastActionAtMs = MutableStateFlow<Long?>(null)
     val lastActionAtMs: StateFlow<Long?> = _lastActionAtMs.asStateFlow()
 
+    private val _healthEvents = MutableStateFlow<List<HealthEvent>>(emptyList())
+    val healthEvents: StateFlow<List<HealthEvent>> = _healthEvents.asStateFlow()
+
     fun client(context: Context): DeviceBusClient {
         val existing = clientInstance
         if (existing != null) return existing
@@ -57,6 +68,7 @@ object DeviceBusRuntime {
         started = true
         _startCount.value += 1
         recordAction("start", "requested")
+        logHealthEvent("control", "start requested")
     }
 
     fun stop() {
@@ -70,23 +82,41 @@ object DeviceBusRuntime {
         started = false
         _stopCount.value += 1
         recordAction("stop", "requested")
+        logHealthEvent("control", "stop requested")
     }
 
     fun restart(context: Context) {
         _lastReconnectAttemptMs.value = System.currentTimeMillis()
         _reconnectCount.value += 1
         recordAction("reconnect", "requested")
+        logHealthEvent("control", "reconnect requested")
         stop()
         start(context)
     }
 
     fun markServiceRunning(running: Boolean) {
         _serviceRunning.value = running
+        logHealthEvent("service", if (running) "service running" else "service stopped")
+    }
+
+    fun logConnectionState(connected: Boolean) {
+        logHealthEvent("bus", if (connected) "bus connected" else "bus disconnected")
     }
 
     private fun recordAction(action: String, result: String) {
         _lastAction.value = action
         _lastActionResult.value = result
         _lastActionAtMs.value = System.currentTimeMillis()
+    }
+
+    private fun logHealthEvent(category: String, message: String) {
+        val next = listOf(
+            HealthEvent(
+                atMs = System.currentTimeMillis(),
+                category = category,
+                message = message,
+            ),
+        ) + _healthEvents.value
+        _healthEvents.value = next.take(HEALTH_EVENT_LIMIT)
     }
 }
