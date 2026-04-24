@@ -188,13 +188,13 @@ class DeviceBusClient(private val context: Context) {
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 _connected.value = false
                 stopHeartbeat()
-                if (cont.isActive) cont.resume(Unit) {}
+                if (cont.isActive) cont.resume(Unit) { _, _, _ -> }
             }
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 _connected.value = false
                 stopHeartbeat()
-                if (cont.isActive) cont.resume(Unit) {}
+                if (cont.isActive) cont.resume(Unit) { _, _, _ -> }
             }
         })
 
