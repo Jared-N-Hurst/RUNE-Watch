@@ -1,6 +1,7 @@
 ﻿// Copyright (c) RUNE Systems LLC 2026
 package com.rune.watch.bus
 
+import android.content.Context
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,6 +9,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -27,8 +29,30 @@ class DeviceBusService : Service() {
     companion object {
         const val ACTION_START = "com.rune.watch.bus.START"
         const val ACTION_STOP = "com.rune.watch.bus.STOP"
+        const val ACTION_RECONNECT = "com.rune.watch.bus.RECONNECT"
         private const val CHANNEL_ID = "ember_sync"
         private const val NOTIFICATION_ID = 1001
+
+        fun start(context: Context) {
+            val intent = Intent(context, DeviceBusService::class.java).apply {
+                action = ACTION_START
+            }
+            ContextCompat.startForegroundService(context, intent)
+        }
+
+        fun stop(context: Context) {
+            val intent = Intent(context, DeviceBusService::class.java).apply {
+                action = ACTION_STOP
+            }
+            context.startService(intent)
+        }
+
+        fun reconnect(context: Context) {
+            val intent = Intent(context, DeviceBusService::class.java).apply {
+                action = ACTION_RECONNECT
+            }
+            ContextCompat.startForegroundService(context, intent)
+        }
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -40,15 +64,26 @@ class DeviceBusService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
-            return START_NOT_STICKY
+        when (intent?.action) {
+            ACTION_STOP -> {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return START_NOT_STICKY
+            }
+
+            ACTION_RECONNECT -> {
+                startForeground(NOTIFICATION_ID, buildNotification(connected = false))
+                DeviceBusRuntime.restart(applicationContext)
+                observeConnectionState()
+            }
+
+            else -> {
+                startForeground(NOTIFICATION_ID, buildNotification(connected = false))
+                DeviceBusRuntime.start(applicationContext)
+                observeConnectionState()
+            }
         }
 
-        startForeground(NOTIFICATION_ID, buildNotification(connected = false))
-        DeviceBusRuntime.start(applicationContext)
-        observeConnectionState()
         return START_STICKY
     }
 

@@ -17,11 +17,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val serviceIntent = Intent(this, DeviceBusService::class.java).apply {
-            action = DeviceBusService.ACTION_START
-        }
-        ContextCompat.startForegroundService(this, serviceIntent)
+        DeviceBusService.start(this)
 
         busClient = DeviceBusRuntime.client(applicationContext)
         setContent {

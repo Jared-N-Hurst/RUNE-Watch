@@ -32,4 +32,9 @@ object DeviceBusRuntime {
         clientInstance = null
         started = false
     }
+
+    fun restart(context: Context) {
+        stop()
+        start(context)
+    }
 }

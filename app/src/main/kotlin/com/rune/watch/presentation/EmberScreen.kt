@@ -16,6 +16,7 @@ import androidx.wear.compose.material.*
 fun EmberScreen(
     connected: Boolean,
     emberState: String,
+    onOpenSettings: () -> Unit,
     onSendCommand: (intent: String, payload: Map<String, Any>?) -> Unit
 ) {
     val bgColor = Color(0xFF0D0D0D)
@@ -82,6 +83,11 @@ fun EmberScreen(
                 Chip(
                     onClick = { onSendCommand("toggle_desktop", null) },
                     label = { Text("Desktop", fontSize = 11.sp) },
+                    colors = ChipDefaults.chipColors(backgroundColor = Color(0xFF1E1E1E))
+                )
+                Chip(
+                    onClick = onOpenSettings,
+                    label = { Text("Settings", fontSize = 11.sp) },
                     colors = ChipDefaults.chipColors(backgroundColor = Color(0xFF1E1E1E))
                 )
             }

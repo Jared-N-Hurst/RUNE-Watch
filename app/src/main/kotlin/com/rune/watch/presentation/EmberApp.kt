@@ -32,9 +32,19 @@ fun EmberApp(busClient: DeviceBusClient) {
                 EmberScreen(
                     connected = connected,
                     emberState = emberState,
+                    onOpenSettings = {
+                        navController.navigate("settings")
+                    },
                     onSendCommand = { intent, payload ->
                         busClient.sendCommand(intent, payload)
                     }
+                )
+            }
+
+            composable("settings") {
+                SettingsScreen(
+                    connected = connected,
+                    onBack = { navController.popBackStack() },
                 )
             }
         }
