@@ -2,9 +2,13 @@
 package com.rune.watch.bus
 
 import android.content.Context
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import com.rune.watch.storage.emberPrefsDataStore
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import okhttp3.*
@@ -14,8 +18,6 @@ import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
-
-private val Context.dataStore by preferencesDataStore("ember_prefs")
 
 private val KEY_DEVICE_ID  = stringPreferencesKey("device_id")
 private val KEY_USER_ID    = stringPreferencesKey("user_id")
@@ -247,14 +249,21 @@ class DeviceBusClient(private val context: Context) {
     }
 
     private fun handleMessage(text: String) {
-        runCatching {
+        val command = runCatching {
             val msg = JSONObject(text)
             if (msg.optString("type") == "command") {
                 val commandId = msg.optString("commandId")
                 if (commandId.isNotBlank()) {
                     scope.launch { acknowledgeCommand(commandId, "received") }
                 }
+                msg
+            } else {
+                null
             }
+        }.getOrNull()
+
+        if (command != null) {
+            handleCommandIntent(command)
         }
 
         val parsed = parseDeviceBusMessage(text)
@@ -269,8 +278,94 @@ class DeviceBusClient(private val context: Context) {
         }
     }
 
+    private fun handleCommandIntent(command: JSONObject) {
+        val intent = command.optString("intent")
+        val payload = command.optJSONObject("payload")
+        val fromDevice = command.optString("fromDevice")
+
+        when (intent) {
+            "haptic_ping" -> {
+                triggerHaptic(longArrayOf(0L, 80L, 40L, 90L))
+                _currentNotification.value = ParsedNotification(
+                    id = command.optString("commandId").ifBlank { "haptic-${System.currentTimeMillis()}" },
+                    type = "status",
+                    title = payload?.optString("title").orEmpty().ifBlank { "Phone Ping" },
+                    body = payload?.optString("body").orEmpty().ifBlank { "Haptic check from linked phone." },
+                    actions = emptyList(),
+                )
+            }
+            "alert_notify", "process_completion" -> {
+                triggerHaptic(longArrayOf(0L, 60L, 30L, 60L, 30L, 90L))
+                _currentNotification.value = ParsedNotification(
+                    id = command.optString("commandId").ifBlank { "alert-${System.currentTimeMillis()}" },
+                    type = "alert",
+                    title = payload?.optString("title").orEmpty().ifBlank {
+                        if (intent == "process_completion") "Process Complete" else "Ember Alert"
+                    },
+                    body = payload?.optString("body").orEmpty().ifBlank { "A linked surface sent an update." },
+                    actions = emptyList(),
+                )
+            }
+            "presence_probe" -> {
+                if (fromDevice.isNotBlank()) {
+                    scope.launch {
+                        sendDirectCommand(
+                            toDevice = fromDevice,
+                            intent = "presence_probe_ack",
+                            payload = JSONObject().apply {
+                                put("sourceDeviceId", deviceId)
+                                put("role", "watch")
+                                put("acknowledgedAtMs", System.currentTimeMillis())
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun sendDirectCommand(toDevice: String, intent: String, payload: JSONObject) {
+        if (userId.isBlank() || authToken.isBlank() || deviceId.isBlank()) return
+        runCatching {
+            val body = JSONObject().apply {
+                put("fromDevice", deviceId)
+                put("toDevice", toDevice)
+                put("intent", intent)
+                put("payload", payload)
+            }.toString()
+
+            val req = Request.Builder()
+                .url("$API_BASE_URL/api/device/command?userId=$userId")
+                .addHeader("Authorization", "Bearer $authToken")
+                .post(body.toRequestBody("application/json".toMediaType()))
+                .build()
+
+            http.newCall(req).execute().use { }
+        }
+    }
+
+    private fun triggerHaptic(pattern: LongArray) {
+        runCatching {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                context.getSystemService(VibratorManager::class.java)?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            } ?: return
+
+            if (!vibrator.hasVibrator()) return
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(pattern, -1)
+            }
+        }
+    }
+
     private suspend fun loadCredentials() {
-        context.dataStore.data.first().let { prefs ->
+        context.emberPrefsDataStore.data.first().let { prefs ->
             deviceId  = prefs[KEY_DEVICE_ID]  ?: generateAndSaveDeviceId()
             userId    = prefs[KEY_USER_ID]    ?: ""
             authToken = prefs[KEY_AUTH_TOKEN] ?: ""
@@ -282,7 +377,7 @@ class DeviceBusClient(private val context: Context) {
 
     private suspend fun generateAndSaveDeviceId(): String {
         val id = UUID.randomUUID().toString()
-        context.dataStore.edit { it[KEY_DEVICE_ID] = id }
+        context.emberPrefsDataStore.edit { it[KEY_DEVICE_ID] = id }
         return id
     }
 
@@ -290,7 +385,7 @@ class DeviceBusClient(private val context: Context) {
     suspend fun saveCredentials(userId: String, authToken: String) {
         this.userId    = userId
         this.authToken = authToken
-        context.dataStore.edit {
+        context.emberPrefsDataStore.edit {
             it[KEY_USER_ID]    = userId
             it[KEY_AUTH_TOKEN] = authToken
         }
@@ -302,7 +397,7 @@ class DeviceBusClient(private val context: Context) {
     suspend fun clearCredentials() {
         this.userId = ""
         this.authToken = ""
-        context.dataStore.edit {
+        context.emberPrefsDataStore.edit {
             it.remove(KEY_USER_ID)
             it.remove(KEY_AUTH_TOKEN)
         }

@@ -1,8 +1,9 @@
 ﻿// Copyright (c) RUNE Systems LLC 2026
 package com.rune.watch
 
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import android.content.ComponentName
+import androidx.wear.protolayout.ActionBuilders
+import androidx.wear.protolayout.ModifiersBuilders
 import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.ResourceBuilders
 import androidx.wear.tiles.TileBuilders
@@ -14,14 +15,8 @@ import androidx.wear.protolayout.LayoutElementBuilders.FontStyle
 import androidx.wear.protolayout.TimelineBuilders
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
-import com.rune.watch.bus.EmberStatusClient
-import com.rune.watch.bus.IdentityMapClient
-import kotlinx.coroutines.flow.first
+import com.rune.watch.bus.DeviceBusRuntime
 import kotlinx.coroutines.runBlocking
-
-private val android.content.Context.dataStore by preferencesDataStore("ember_prefs")
-private val KEY_USER_ID = stringPreferencesKey("user_id")
-private val KEY_AUTH_TOKEN = stringPreferencesKey("auth_token")
 
 /**
  * Ember WearOS Tile — appears in the Watch's swipe-left pages.
@@ -32,6 +27,20 @@ private val KEY_AUTH_TOKEN = stringPreferencesKey("auth_token")
  */
 class EmberTileService : TileService() {
 
+    private data class EmberFrame(
+        val emberColorArgb: Int,
+        val glowColorArgb: Int,
+    )
+
+    private val emberFrames = listOf(
+        EmberFrame(0xFFFF8A50.toInt(), 0x66FFB74D),
+        EmberFrame(0xFFFF6D3A.toInt(), 0x55FF8A50),
+        EmberFrame(0xFFFFB74D.toInt(), 0x66FFD180),
+        EmberFrame(0xFFFF8A50.toInt(), 0x55FF6D3A),
+        EmberFrame(0xFFFF6D3A.toInt(), 0x66FFB74D),
+        EmberFrame(0xFFFFAB40.toInt(), 0x55FF8A50),
+    )
+
     override fun onResourcesRequest(requestParams: RequestBuilders.ResourcesRequest): ListenableFuture<ResourceBuilders.Resources> {
         return Futures.immediateFuture(
             ResourceBuilders.Resources.Builder()
@@ -41,67 +50,155 @@ class EmberTileService : TileService() {
     }
 
     override fun onTileRequest(requestParams: RequestBuilders.TileRequest): ListenableFuture<TileBuilders.Tile> {
-        // FUT-3: load compact identity map for non-mythic tile display
-        // Prefer explicit Ember tile status and fall back to compact identity map.
         val tile = runBlocking {
-            val prefs = dataStore.data.first()
-            val userId = prefs[KEY_USER_ID] ?: ""
-            val authToken = prefs[KEY_AUTH_TOKEN] ?: ""
+            val now = System.currentTimeMillis()
+            val frameIndex = ((now / 1_500L) % emberFrames.size).toInt()
+            val emberFrame = emberFrames[frameIndex]
+            val paired = DeviceBusRuntime.client(applicationContext).paired.value
+            val launchAction = ActionBuilders.LaunchAction.Builder()
+                .setAndroidActivity(
+                    ActionBuilders.AndroidActivity.Builder()
+                        .setPackageName(ComponentName(applicationContext, MainActivity::class.java).packageName)
+                        .setClassName(MainActivity::class.java.name)
+                        .build()
+                )
+                .build()
+            val rootModifiers = ModifiersBuilders.Modifiers.Builder()
+                .setClickable(
+                    ModifiersBuilders.Clickable.Builder()
+                        .setId("open-ember-main")
+                        .setOnClick(launchAction)
+                        .build()
+                )
+                .build()
 
-            val emberStatus = if (userId.isNotEmpty() && authToken.isNotEmpty()) {
-                EmberStatusClient().fetchTileStatus(userId, authToken)
-            } else null
+            val orbitStep = ((now / 3_750L) % 8L).toInt()
+            val runeSymbols = listOf("ᚱ", "ᚢ", "ᚾ", "ᛖ", "ᛟ", "ᚠ", "ᛗ", "ᛁ")
+            val runeStyle = FontStyle.Builder()
+                .setSize(DimensionBuilders.sp(10f))
+                .setColor(ColorBuilders.argb(0xFFFDD7A0.toInt()))
+                .build()
 
-            val identityMap = if (emberStatus == null && userId.isNotEmpty() && authToken.isNotEmpty()) {
-                IdentityMapClient().fetchCompact(userId, authToken)
-            } else null
+            fun paddedBox(
+                top: Float = 0f,
+                bottom: Float = 0f,
+                start: Float = 0f,
+                end: Float = 0f,
+                content: LayoutElementBuilders.LayoutElement,
+            ): LayoutElementBuilders.Box =
+                LayoutElementBuilders.Box.Builder()
+                    .setWidth(DimensionBuilders.expand())
+                    .setHeight(DimensionBuilders.expand())
+                    .setModifiers(
+                        ModifiersBuilders.Modifiers.Builder()
+                            .setPadding(
+                                ModifiersBuilders.Padding.Builder()
+                                    .setTop(DimensionBuilders.dp(top))
+                                    .setBottom(DimensionBuilders.dp(bottom))
+                                    .setStart(DimensionBuilders.dp(start))
+                                    .setEnd(DimensionBuilders.dp(end))
+                                    .build()
+                            )
+                            .build()
+                    )
+                    .addContent(content)
+                    .build()
 
-            val displayText = emberStatus?.let {
-                val riskSuffix = if (it.riskCount > 0) " • ${it.riskCount} alerts" else ""
-                "${it.phaseLabel}$riskSuffix"
-            } ?: when (identityMap?.convergenceState) {
-                "complete" -> "Cycle complete"
-                "converging" -> "Converging"
-                "stirring" -> "Stirring"
-                else -> "Ember ready"
+            fun runeGlyph(symbol: String): LayoutElementBuilders.Text =
+                LayoutElementBuilders.Text.Builder()
+                    .setText(symbol)
+                    .setFontStyle(runeStyle)
+                    .build()
+
+            fun orbitRune(symbol: String, slot: Int): LayoutElementBuilders.Box = when (slot) {
+                0 -> paddedBox(top = 2f, bottom = 72f, content = runeGlyph(symbol))
+                1 -> paddedBox(top = 12f, bottom = 54f, start = 58f, end = 8f, content = runeGlyph(symbol))
+                2 -> paddedBox(top = 0f, bottom = 0f, start = 72f, end = 2f, content = runeGlyph(symbol))
+                3 -> paddedBox(top = 54f, bottom = 12f, start = 58f, end = 8f, content = runeGlyph(symbol))
+                4 -> paddedBox(top = 72f, bottom = 2f, content = runeGlyph(symbol))
+                5 -> paddedBox(top = 54f, bottom = 12f, start = 8f, end = 58f, content = runeGlyph(symbol))
+                6 -> paddedBox(top = 0f, bottom = 0f, start = 2f, end = 72f, content = runeGlyph(symbol))
+                else -> paddedBox(top = 12f, bottom = 54f, start = 8f, end = 58f, content = runeGlyph(symbol))
             }
-            val engagementSummary = emberStatus?.engagementSummary ?: ""
-            val resonanceLabel = emberStatus?.let {
-                " R:${(it.isilmeResonance * 100).toInt()}%"
-            } ?: identityMap?.let {
-                " R:${(it.isilmeResonance * 100).toInt()}%"
-            } ?: ""
 
-            val text = LayoutElementBuilders.Text.Builder()
-                .setText("$displayText$resonanceLabel")
+            val glow = LayoutElementBuilders.Text.Builder()
+                .setText("●")
                 .setFontStyle(
                     FontStyle.Builder()
-                        .setSize(DimensionBuilders.sp(16f))
-                        .setColor(ColorBuilders.argb(0xFFFF7043.toInt()))
+                        .setSize(DimensionBuilders.sp(62f))
+                        .setColor(ColorBuilders.argb(emberFrame.glowColorArgb))
                         .build()
                 )
                 .build()
 
-            val summaryText = LayoutElementBuilders.Text.Builder()
-                .setText(engagementSummary)
+            val outerRing = LayoutElementBuilders.Text.Builder()
+                .setText("○")
                 .setFontStyle(
                     FontStyle.Builder()
-                        .setSize(DimensionBuilders.sp(12f))
-                        .setColor(ColorBuilders.argb(0xFFFFFFFF.toInt()))
+                        .setSize(DimensionBuilders.sp(55f))
+                        .setColor(ColorBuilders.argb(0xCCFF7A45.toInt()))
                         .build()
                 )
                 .build()
 
-            val layout = LayoutElementBuilders.Box.Builder()
-                .addContent(text)
-                .addContent(summaryText)
+            val glyphText = LayoutElementBuilders.Text.Builder()
+                .setText("●")
+                .setFontStyle(
+                    FontStyle.Builder()
+                        .setSize(DimensionBuilders.sp(31f))
+                        .setColor(ColorBuilders.argb(emberFrame.emberColorArgb))
+                        .build()
+                )
+                .build()
+
+            // Small green indicator dot for pairing status
+            val pairingIndicator = LayoutElementBuilders.Text.Builder()
+                .setText(if (paired) "●" else "○")
+                .setFontStyle(
+                    FontStyle.Builder()
+                        .setSize(DimensionBuilders.sp(7f))
+                        .setColor(ColorBuilders.argb(if (paired) 0xFF4CAF50.toInt() else 0xFF78909C.toInt()))
+                        .build()
+                )
+                .build()
+
+            val centerContent = LayoutElementBuilders.Box.Builder()
+                .setWidth(DimensionBuilders.dp(112f))
+                .setHeight(DimensionBuilders.dp(112f))
+                .addContent(glow)
+                .addContent(outerRing)
+                .addContent(glyphText)
+                .addContent(
+                    paddedBox(top = 64f, bottom = 8f, start = 66f, end = 8f, content = pairingIndicator)
+                )
+                .build()
+
+            val orbitContent = LayoutElementBuilders.Box.Builder()
+                .setWidth(DimensionBuilders.dp(112f))
+                .setHeight(DimensionBuilders.dp(112f))
+                .addContent(orbitRune(runeSymbols[0], orbitStep % 8))
+                .addContent(orbitRune(runeSymbols[1], (orbitStep + 1) % 8))
+                .addContent(orbitRune(runeSymbols[2], (orbitStep + 2) % 8))
+                .addContent(orbitRune(runeSymbols[3], (orbitStep + 3) % 8))
+                .addContent(orbitRune(runeSymbols[4], (orbitStep + 4) % 8))
+                .addContent(orbitRune(runeSymbols[5], (orbitStep + 5) % 8))
+                .addContent(orbitRune(runeSymbols[6], (orbitStep + 6) % 8))
+                .addContent(orbitRune(runeSymbols[7], (orbitStep + 7) % 8))
+                .build()
+
+            val stack = LayoutElementBuilders.Box.Builder()
+                .setWidth(DimensionBuilders.expand())
+                .setHeight(DimensionBuilders.expand())
+                .setModifiers(rootModifiers)
+                .addContent(orbitContent)
+                .addContent(centerContent)
                 .build()
 
             TileBuilders.Tile.Builder()
                 .setResourcesVersion("1")
-                .setFreshnessIntervalMillis(5 * 60 * 1_000L) // refresh every 5 minutes
+                .setFreshnessIntervalMillis(1_500L)
                 .setTileTimeline(
-                    TimelineBuilders.Timeline.fromLayoutElement(layout)
+                    TimelineBuilders.Timeline.fromLayoutElement(stack)
                 )
                 .build()
         }

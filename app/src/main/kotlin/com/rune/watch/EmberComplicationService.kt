@@ -2,15 +2,13 @@
 package com.rune.watch
 
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import androidx.wear.watchface.complications.data.*
 import androidx.wear.watchface.complications.datasource.ComplicationRequest
 import androidx.wear.watchface.complications.datasource.SuspendingComplicationDataSourceService
 import com.rune.watch.bus.EmberStatusClient
 import com.rune.watch.bus.IdentityMapClient
+import com.rune.watch.storage.emberPrefsDataStore
 import kotlinx.coroutines.flow.first
-
-private val android.content.Context.dataStore by preferencesDataStore("ember_prefs")
 private val KEY_USER_ID = stringPreferencesKey("user_id")
 private val KEY_AUTH_TOKEN = stringPreferencesKey("auth_token")
 
@@ -38,7 +36,7 @@ class EmberComplicationService : SuspendingComplicationDataSourceService() {
 
     override suspend fun onComplicationRequest(request: ComplicationRequest): ComplicationData? =
         run {
-            val prefs = dataStore.data.first()
+            val prefs = applicationContext.emberPrefsDataStore.data.first()
             val userId = prefs[KEY_USER_ID] ?: ""
             val authToken = prefs[KEY_AUTH_TOKEN] ?: ""
 

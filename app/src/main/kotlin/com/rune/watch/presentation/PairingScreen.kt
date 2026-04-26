@@ -10,9 +10,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.Text
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
@@ -32,9 +33,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
 @Composable
-fun PairingScreen(busClient: DeviceBusClient) {
+fun PairingScreen(busClient: DeviceBusClient, onContinue: () -> Unit) {
     var session by remember { mutableStateOf<PairingSession?>(null) }
     var sessionError by remember { mutableStateOf<String?>(null) }
+    var pairingComplete by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         session = runCatching { busClient.ensurePairingSession() }
@@ -47,6 +49,7 @@ fun PairingScreen(busClient: DeviceBusClient) {
         while (isActive) {
             val paired = busClient.pollPairingStatus()
             if (paired) {
+                pairingComplete = true
                 break
             }
             delay(3_000L)
@@ -102,6 +105,18 @@ fun PairingScreen(busClient: DeviceBusClient) {
                 color = Color.White.copy(alpha = 0.8f),
                 textAlign = TextAlign.Center,
             )
+
+            if (pairingComplete) {
+                Text(
+                    text = "Watch paired. Continue when you are ready.",
+                    fontSize = 10.sp,
+                    color = Color(0xFFA5D6A7),
+                    textAlign = TextAlign.Center,
+                )
+                Button(onClick = onContinue) {
+                    Text(text = "Continue")
+                }
+            }
 
             if (sessionError != null) {
                 Text(

@@ -2,8 +2,12 @@
 package com.rune.watch.presentation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
@@ -20,9 +24,23 @@ fun EmberApp(busClient: DeviceBusClient) {
 
     EmberWatchTheme(themeMode = themeMode) {
         val paired by busClient.paired.collectAsState()
+        var showPairing by rememberSaveable { mutableStateOf(!paired) }
 
-        if (!paired) {
-            PairingScreen(busClient = busClient)
+        LaunchedEffect(paired) {
+            if (!paired) {
+                showPairing = true
+            }
+        }
+
+        if (showPairing) {
+            PairingScreen(
+                busClient = busClient,
+                onContinue = {
+                    if (paired) {
+                        showPairing = false
+                    }
+                },
+            )
             return@EmberWatchTheme
         }
 
