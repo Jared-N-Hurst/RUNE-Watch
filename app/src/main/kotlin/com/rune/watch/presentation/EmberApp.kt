@@ -27,9 +27,7 @@ fun EmberApp(busClient: DeviceBusClient) {
         var showPairing by rememberSaveable { mutableStateOf(!paired) }
 
         LaunchedEffect(paired) {
-            if (!paired) {
-                showPairing = true
-            }
+            showPairing = !paired
         }
 
         if (showPairing) {

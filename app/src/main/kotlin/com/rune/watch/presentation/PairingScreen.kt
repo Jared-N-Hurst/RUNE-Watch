@@ -44,6 +44,15 @@ fun PairingScreen(busClient: DeviceBusClient, onContinue: () -> Unit) {
             .getOrNull()
     }
 
+    LaunchedEffect(session?.timestamp) {
+        val current = session ?: return@LaunchedEffect
+        val refreshDelayMs = (55_000L - (System.currentTimeMillis() - current.timestamp)).coerceAtLeast(1_000L)
+        delay(refreshDelayMs)
+        session = runCatching { busClient.ensurePairingSession(forceRefresh = true) }
+            .onFailure { sessionError = "Could not refresh pairing right now." }
+            .getOrNull()
+    }
+
     LaunchedEffect(session?.pairingCode, session?.timestamp) {
         if (session == null) return@LaunchedEffect
         while (isActive) {
@@ -54,6 +63,13 @@ fun PairingScreen(busClient: DeviceBusClient, onContinue: () -> Unit) {
             }
             delay(3_000L)
         }
+    }
+
+    LaunchedEffect(pairingComplete) {
+        if (!pairingComplete) return@LaunchedEffect
+        // Auto-continue so users are not stranded on QR after successful pairing.
+        delay(700L)
+        onContinue()
     }
 
     val qrBitmap = remember(session?.qrPayload) {
@@ -108,7 +124,7 @@ fun PairingScreen(busClient: DeviceBusClient, onContinue: () -> Unit) {
 
             if (pairingComplete) {
                 Text(
-                    text = "Watch paired. Continue when you are ready.",
+                    text = "Watch paired. Opening Ember…",
                     fontSize = 10.sp,
                     color = Color(0xFFA5D6A7),
                     textAlign = TextAlign.Center,

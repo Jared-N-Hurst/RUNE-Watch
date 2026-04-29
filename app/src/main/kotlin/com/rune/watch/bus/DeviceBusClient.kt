@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.util.Log
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.rune.watch.storage.emberPrefsDataStore
@@ -18,6 +19,8 @@ import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
+
+private const val TAG = "RUNE_DeviceBus"
 
 private val KEY_DEVICE_ID  = stringPreferencesKey("device_id")
 private val KEY_USER_ID    = stringPreferencesKey("user_id")
@@ -147,6 +150,9 @@ class DeviceBusClient(private val context: Context) {
     }
 
     suspend fun respondToNotificationAction(notificationId: String, actionId: String): Boolean {
+        // Clear the notification immediately so the UI updates before the network round-trip
+        _currentNotification.value = null
+
         if (userId.isBlank() || authToken.isBlank()) return false
 
         return withContext(Dispatchers.IO) {
@@ -413,6 +419,7 @@ class DeviceBusClient(private val context: Context) {
 
         val current = _pairingSession.value
         if (!forceRefresh && current != null && (System.currentTimeMillis() - current.timestamp) < 60_000L) {
+            Log.i(TAG, "ensurePairingSession: returning cached session code=${current.pairingCode}")
             return current
         }
 
@@ -425,18 +432,25 @@ class DeviceBusClient(private val context: Context) {
             .put("timestamp", timestamp)
             .toString()
 
-        runCatching {
-            val body = JSONObject().apply {
-                put("deviceId", resolvedDeviceId)
-                put("pairingCode", pairingCode)
-                put("timestamp", timestamp)
-            }.toString()
+        Log.i(TAG, "ensurePairingSession: registering new session deviceId=$resolvedDeviceId code=$pairingCode")
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val body = JSONObject().apply {
+                    put("deviceId", resolvedDeviceId)
+                    put("pairingCode", pairingCode)
+                    put("timestamp", timestamp)
+                }.toString()
 
-            val req = Request.Builder()
-                .url("$API_BASE_URL/api/device/pair/register")
-                .post(body.toRequestBody("application/json".toMediaType()))
-                .build()
-            http.newCall(req).execute().use { }
+                val req = Request.Builder()
+                    .url("$API_BASE_URL/api/device/pair/register")
+                    .post(body.toRequestBody("application/json".toMediaType()))
+                    .build()
+                http.newCall(req).execute().use { res ->
+                    Log.i(TAG, "ensurePairingSession: register response HTTP ${res.code}")
+                }
+            }.onFailure { e ->
+                Log.e(TAG, "ensurePairingSession: register FAILED: ${e}")
+            }
         }
 
         val session = PairingSession(
@@ -450,27 +464,37 @@ class DeviceBusClient(private val context: Context) {
     }
 
     suspend fun pollPairingStatus(): Boolean {
-        val session = _pairingSession.value ?: return false
-        return runCatching {
-            val url = "$API_BASE_URL/api/device/pair/status?deviceId=${session.deviceId}&pairingCode=${session.pairingCode}"
-            val req = Request.Builder().url(url).get().build()
-            http.newCall(req).execute().use { res ->
-                if (!res.isSuccessful) return@use false
-                val raw = res.body?.string() ?: return@use false
-                val body = JSONObject(raw)
-                if (!body.optBoolean("ok", false)) return@use false
-                val data = body.optJSONObject("data") ?: return@use false
-                val paired = data.optBoolean("paired", false)
-                if (!paired) return@use false
+        val session = _pairingSession.value ?: run {
+            Log.w(TAG, "pollPairingStatus: no active session")
+            return false
+        }
+        Log.d(TAG, "pollPairingStatus: checking deviceId=${session.deviceId} code=${session.pairingCode}")
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val url = "$API_BASE_URL/api/device/pair/status?deviceId=${session.deviceId}&pairingCode=${session.pairingCode}"
+                val req = Request.Builder().url(url).get().build()
+                http.newCall(req).execute().use { res ->
+                    val raw = res.body?.string() ?: ""
+                    Log.i(TAG, "pollPairingStatus: HTTP ${res.code} body=$raw")
+                    if (!res.isSuccessful) return@use false
+                    val body = JSONObject(raw)
+                    if (!body.optBoolean("ok", false)) return@use false
+                    val data = body.optJSONObject("data") ?: return@use false
+                    val paired = data.optBoolean("paired", false)
+                    if (!paired) return@use false
 
-                val pairedUserId = data.optString("userId")
-                val watchAuthToken = data.optString("watchAuthToken")
-                if (pairedUserId.isBlank() || watchAuthToken.isBlank()) return@use false
+                    val pairedUserId = data.optString("userId")
+                    val watchAuthToken = data.optString("watchAuthToken")
+                    Log.i(TAG, "pollPairingStatus: paired=true userId=$pairedUserId hasToken=${watchAuthToken.isNotBlank()}")
+                    if (pairedUserId.isBlank() || watchAuthToken.isBlank()) return@use false
 
-                saveCredentials(pairedUserId, watchAuthToken)
-                true
-            }
-        }.getOrDefault(false)
+                    saveCredentials(pairedUserId, watchAuthToken)
+                    true
+                }
+            }.onFailure { e ->
+                Log.e(TAG, "pollPairingStatus: FAILED: ${e}")
+            }.getOrDefault(false)
+        }
     }
 
     private suspend fun acknowledgeCommand(commandId: String, status: String) {
