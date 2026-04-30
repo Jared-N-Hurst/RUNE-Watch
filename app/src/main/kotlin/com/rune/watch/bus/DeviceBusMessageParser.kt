@@ -15,6 +15,8 @@ data class ParsedNotification(
     val title: String,
     val body: String,
     val actions: List<NotificationAction> = emptyList(),
+    val sourceLabel: String? = null,
+    val sourceSurface: String? = null,
 )
 
 data class ParsedDeviceBusMessage(
@@ -50,7 +52,9 @@ internal fun parseDeviceBusMessage(text: String): ParsedDeviceBusMessage {
                     type = data.optString("type"),
                     title = data.optString("title"),
                     body = data.optString("body"),
-                    actions = actions
+                    actions = actions,
+                    sourceLabel = data.optString("sourceLabel").takeIf { it.isNotEmpty() },
+                    sourceSurface = data.optString("sourceSurface").takeIf { it.isNotEmpty() }
                 )
             )
         }

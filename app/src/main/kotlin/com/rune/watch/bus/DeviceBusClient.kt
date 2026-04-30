@@ -300,6 +300,16 @@ class DeviceBusClient(private val context: Context) {
                     actions = emptyList(),
                 )
             }
+            // WDP-9A: named pattern dispatch via HapticPatternRegistry
+            "haptic.pattern" -> {
+                val patternId = payload?.optString("patternId").orEmpty()
+                val waveform = HapticPatternRegistry.resolve(patternId)
+                if (waveform != null) {
+                    triggerHaptic(waveform)
+                } else {
+                    Log.d(TAG, "haptic.pattern: unknown patternId '$patternId' — no-op")
+                }
+            }
             "alert_notify", "process_completion" -> {
                 triggerHaptic(longArrayOf(0L, 60L, 30L, 60L, 30L, 90L))
                 _currentNotification.value = ParsedNotification(
@@ -327,6 +337,14 @@ class DeviceBusClient(private val context: Context) {
                     }
                 }
             }
+        }
+
+        // WDP-9A: process optional LFSE hint envelope (no-op when LfseSeam.ENABLED=false)
+        val lfseHint = command.optJSONObject("lfseHint")
+        if (lfseHint != null) {
+            val sessionId = lfseHint.optString("sessionId").orEmpty()
+            val deltaCount = lfseHint.optInt("deltaCount", 0)
+            LfseSeam.onSyncHint(sessionId, deltaCount)
         }
     }
 

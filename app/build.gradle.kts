@@ -68,6 +68,14 @@ android {
         // Workaround for AGP/Kotlin analyzer incompatibility in CI release analysis.
         disable += "NullSafeMutableLiveData"
     }
+
+    testOptions {
+        unitTests {
+            // Prevent unmocked Android SDK methods (e.g. Log.d) from throwing
+            // RuntimeException during local JVM unit tests.
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {

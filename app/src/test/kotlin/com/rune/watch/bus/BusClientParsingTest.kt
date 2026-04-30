@@ -49,6 +49,86 @@ class BusClientParsingTest {
     }
 
     @Test
+    fun parseDeviceBusMessage_readsNotificationWithSourceTags() {
+        val parsed = parseDeviceBusMessage(
+            """
+            {
+              "type":"notification",
+              "data":{
+                "id":"notif-1",
+                "type":"relay",
+                "title":"Message from Phone",
+                "body":"Hello from mobile",
+                "sourceLabel":"Phone",
+                "sourceSurface":"phone",
+                "actions":[]
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertNotNull(parsed.notification)
+        assertEquals("notif-1", parsed.notification?.id)
+        assertEquals("relay", parsed.notification?.type)
+        assertEquals("Message from Phone", parsed.notification?.title)
+        assertEquals("Hello from mobile", parsed.notification?.body)
+        assertEquals("Phone", parsed.notification?.sourceLabel)
+        assertEquals("phone", parsed.notification?.sourceSurface)
+    }
+
+    @Test
+    fun parseDeviceBusMessage_notificationSourceTagsOptional() {
+        val parsed = parseDeviceBusMessage(
+            """
+            {
+              "type":"notification",
+              "data":{
+                "id":"notif-2",
+                "type":"status",
+                "title":"Status Update",
+                "body":"No source tags",
+                "actions":[]
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertNotNull(parsed.notification)
+        assertEquals("notif-2", parsed.notification?.id)
+        assertNull(parsed.notification?.sourceLabel)
+        assertNull(parsed.notification?.sourceSurface)
+    }
+
+    @Test
+    fun parseDeviceBusMessage_readsNotificationWithActions() {
+        val parsed = parseDeviceBusMessage(
+            """
+            {
+              "type":"notification",
+              "data":{
+                "id":"notif-3",
+                "type":"alert",
+                "title":"Action Available",
+                "body":"Take action",
+                "sourceLabel":"Desktop",
+                "sourceSurface":"desktop",
+                "actions":[
+                  {"id":"ack","label":"Acknowledge","actionType":"primary"},
+                  {"id":"dismiss","label":"Dismiss","actionType":"secondary"}
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertNotNull(parsed.notification)
+        assertEquals(2, parsed.notification?.actions?.size)
+        assertEquals("Desktop", parsed.notification?.sourceLabel)
+        assertEquals("desktop", parsed.notification?.sourceSurface)
+        assertEquals("Acknowledge", parsed.notification?.actions?.get(0)?.label)
+    }
+
+    @Test
     fun emberStatusClient_parsesSuccessfulPayload() {
         val client = EmberStatusClient()
         val parsed = client.parseTileStatusBody(
