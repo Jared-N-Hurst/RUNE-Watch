@@ -195,10 +195,13 @@ class DeviceBusClient(private val context: Context) {
 
     private suspend fun registerDevice() {
         runCatching {
+            val capabilities = mutableListOf("notifications", "haptics")
+            if (LfseSeam.ENABLED) capabilities += "lfse-v1"
+
             val caps = JSONObject().apply {
                 put("deviceId",     deviceId)
                 put("platform",     "wearos")
-                put("capabilities", org.json.JSONArray(listOf("notifications", "haptics")))
+                put("capabilities", org.json.JSONArray(capabilities))
                 put("label",        "Galaxy Watch")
                 put("deviceType",   "watch")
                 put("trustLevel",   "personal")
@@ -396,6 +399,10 @@ class DeviceBusClient(private val context: Context) {
             _deviceIdState.value = deviceId
             _userIdState.value = userId
             _paired.value = userId.isNotBlank() && authToken.isNotBlank()
+
+            if (_paired.value) {
+                LfseSeam.initialize(deviceId = deviceId, userId = userId, authToken = authToken)
+            }
         }
     }
 
@@ -416,6 +423,8 @@ class DeviceBusClient(private val context: Context) {
         _userIdState.value = userId
         _paired.value = true
         _pairingSession.value = null
+
+        LfseSeam.initialize(deviceId = deviceId, userId = userId, authToken = authToken)
     }
 
     suspend fun clearCredentials() {

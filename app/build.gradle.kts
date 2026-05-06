@@ -13,12 +13,33 @@ android {
         System.getenv("RUNE_WATCH_VERSION_CODE")?.toIntOrNull()
             ?: System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
 
+    val lfseEnabled =
+        (findProperty("RUNE_WATCH_LFSE_ENABLED") as String?)
+            ?: System.getenv("RUNE_WATCH_LFSE_ENABLED")
+            ?: "false"
+    val lfseEnabledLiteral = lfseEnabled.toBooleanStrictOrNull()?.toString() ?: "false"
+
+    val heartRateEnabled =
+        (findProperty("RUNE_WATCH_HEART_RATE_ENABLED") as String?)
+            ?: System.getenv("RUNE_WATCH_HEART_RATE_ENABLED")
+            ?: "true"
+    val heartRateEnabledLiteral = heartRateEnabled.toBooleanStrictOrNull()?.toString() ?: "true"
+
+    val heartRateTimeoutMs =
+        (findProperty("RUNE_WATCH_HEART_RATE_TIMEOUT_MS") as String?)
+            ?: System.getenv("RUNE_WATCH_HEART_RATE_TIMEOUT_MS")
+            ?: "1200"
+    val heartRateTimeoutLiteral = heartRateTimeoutMs.toLongOrNull()?.coerceIn(250L, 5000L)?.toString() ?: "1200"
+
     defaultConfig {
         applicationId = "com.runesystems.watch"
         minSdk = 30          // WearOS 3.x minimum
         targetSdk = 35
         versionCode = ciVersionCode ?: 1
         versionName = "0.1.0"
+        buildConfigField("boolean", "LFSE_SEAM_ENABLED", lfseEnabledLiteral)
+        buildConfigField("boolean", "HEART_RATE_SENSOR_ENABLED", heartRateEnabledLiteral)
+        buildConfigField("long", "HEART_RATE_READ_TIMEOUT_MS", "${heartRateTimeoutLiteral}L")
     }
 
     val releaseStoreFile = providers.gradleProperty("RUNE_WATCH_RELEASE_STORE_FILE").orNull
@@ -62,6 +83,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     lint {

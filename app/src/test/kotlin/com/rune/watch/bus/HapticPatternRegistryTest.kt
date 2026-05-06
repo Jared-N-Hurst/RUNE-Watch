@@ -16,6 +16,28 @@ import kotlin.test.assertTrue
  */
 class HapticPatternRegistryTest {
 
+    private class FakeLfseTransport : LfseSeam.Transport {
+        var handshakeCount = 0
+        var syncCount = 0
+        var lastSyncSessionId: String? = null
+
+        override fun handshake(request: LfseSeam.HandshakeRequest): LfseSeam.HandshakeResponse? {
+            handshakeCount += 1
+            return LfseSeam.HandshakeResponse(sessionId = "lfse-test-session")
+        }
+
+        override fun sync(request: LfseSeam.SyncRequest): Boolean {
+            syncCount += 1
+            lastSyncSessionId = request.sessionId
+            return true
+        }
+    }
+
+    @kotlin.test.AfterTest
+    fun tearDownLfseSeam() {
+        LfseSeam.resetForTests()
+    }
+
     @Test
     fun resolve_ping_returnsKnownWaveform() {
         val waveform = HapticPatternRegistry.resolve(HapticPatternRegistry.PING)
@@ -84,6 +106,32 @@ class HapticPatternRegistryTest {
 
     @Test
     fun lfseSeam_initialize_doesNotThrowWhenDisabled() {
-        LfseSeam.initialize("watch-device-1", "user-1")
+        LfseSeam.initialize("watch-device-1", "user-1", "token-1")
+    }
+
+    @Test
+    fun lfseSeam_liveMode_performsHandshakeAndHintSync() {
+        val tx = FakeLfseTransport()
+        LfseSeam.setEnabledForTests(true)
+        LfseSeam.setTransportForTests(tx)
+
+        LfseSeam.initialize("watch-device-1", "user-1", "token-1")
+        LfseSeam.onSyncHint("", 3)
+
+        assertEquals(1, tx.handshakeCount)
+        assertEquals(1, tx.syncCount)
+        assertEquals("lfse-test-session", tx.lastSyncSessionId)
+    }
+
+    @Test
+    fun lfseSeam_liveMode_ignoresHintWhenNotInitialized() {
+        val tx = FakeLfseTransport()
+        LfseSeam.setEnabledForTests(true)
+        LfseSeam.setTransportForTests(tx)
+
+        LfseSeam.onSyncHint("", 2)
+
+        assertEquals(0, tx.handshakeCount)
+        assertEquals(0, tx.syncCount)
     }
 }

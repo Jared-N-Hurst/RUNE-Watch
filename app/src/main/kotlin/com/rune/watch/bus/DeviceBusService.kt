@@ -132,7 +132,7 @@ class DeviceBusService : Service() {
                 val enabled = WatchSettingsStore.biometricIngestEnabledFlow(applicationContext).first()
                 val client = DeviceBusRuntime.client(applicationContext)
                 if (enabled && client.paired.value) {
-                    val snapshot = HealthMonitor.readSnapshot(applicationContext)
+                    val snapshot = HealthMonitor.readSnapshotAsync(applicationContext)
                     val uploaded = client.uploadBiometricSnapshot(snapshot.toApiData())
                     DeviceBusRuntime.logBiometricUpload(uploaded)
                 }

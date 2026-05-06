@@ -1,11 +1,9 @@
 // Copyright (c) RUNE Systems LLC 2026
-// Copyright (c) RUNE Systems LLC 2026
 package com.rune.watch.health
 
 import android.content.Context
 import android.os.PowerManager
 import java.time.Instant
-import kotlinx.coroutines.runBlocking
 
 data class BiometricSnapshot(
     val heartRate: Int? = null,
@@ -43,21 +41,6 @@ object HealthMonitor {
         // Movement state and HRV will be connected via device-specific sensor APIs in field testing
         return BiometricSnapshot(
             heartRate = heartRate,
-            hrv = null,
-            stressLevel = null,
-            sleepState = sleepState,
-            movementState = "unknown",
-            lastUpdated = Instant.now().toString(),
-        )
-    }
-
-    // Blocking wrapper for compatibility with DeviceBusService coroutine context
-    fun readSnapshot(context: Context): BiometricSnapshot {
-        val powerManager = context.getSystemService(PowerManager::class.java)
-        val sleepState = if (powerManager?.isInteractive == true) "awake" else "light"
-
-        return BiometricSnapshot(
-            heartRate = null,
             hrv = null,
             stressLevel = null,
             sleepState = sleepState,
