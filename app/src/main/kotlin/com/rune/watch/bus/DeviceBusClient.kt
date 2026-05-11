@@ -95,8 +95,10 @@ class DeviceBusClient(private val context: Context) {
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     fun connect() {
-        scope.launch { loadCredentials() }
-        startReconnectLoop()
+        scope.launch {
+            loadCredentials()
+            startReconnectLoop()
+        }
     }
 
     fun disconnect() {
@@ -181,7 +183,7 @@ class DeviceBusClient(private val context: Context) {
         reconnectJob = scope.launch {
             var delaySecs = 2L
             while (isActive) {
-                if (authToken.isNotBlank() && deviceId.isNotBlank()) {
+                if (authToken.isNotBlank() && userId.isNotBlank() && deviceId.isNotBlank()) {
                     registerDevice()
                     openWebSocket()
                     // openWebSocket blocks until the socket closes/errors
@@ -229,6 +231,7 @@ class DeviceBusClient(private val context: Context) {
 
         webSocket = http.newWebSocket(req, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
+                Log.i(TAG, "openWebSocket: connected")
                 _connected.value = true
                 startHeartbeat()
             }
@@ -248,6 +251,11 @@ class DeviceBusClient(private val context: Context) {
             }
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                Log.e(
+                    TAG,
+                    "openWebSocket: failed code=${response?.code} msg=${response?.message} err=${t.message}",
+                    t,
+                )
                 _connected.value = false
                 stopHeartbeat()
                 if (cont.isActive) cont.resume(Unit) { _, _, _ -> }
@@ -290,6 +298,7 @@ class DeviceBusClient(private val context: Context) {
     private fun handleCommandIntent(command: JSONObject) {
         val intent = command.optString("intent")
         val payload = command.optJSONObject("payload")
+        val payloadRaw = command.opt("payload")
         val fromDevice = command.optString("fromDevice")
 
         when (intent) {
@@ -324,6 +333,48 @@ class DeviceBusClient(private val context: Context) {
                     body = payload?.optString("body").orEmpty().ifBlank { "A linked surface sent an update." },
                     actions = emptyList(),
                 )
+            }
+            "relay_message" -> {
+                var messageText = ""
+                var sourceLabel = ""
+                var clientMessageId = ""
+
+                if (payloadRaw is JSONObject) {
+                    messageText = payloadRaw.optString("text").orEmpty().trim()
+                    sourceLabel = payloadRaw.optString("sourceLabel").orEmpty().trim()
+                    clientMessageId = payloadRaw.optString("clientMessageId").orEmpty().trim()
+                } else if (payloadRaw is String) {
+                    messageText = payloadRaw.trim()
+                }
+
+                if (messageText.isBlank()) {
+                    messageText = "New message from linked surface."
+                }
+
+                triggerHaptic(longArrayOf(0L, 50L, 30L, 70L, 30L, 70L))
+                _currentNotification.value = ParsedNotification(
+                    id = command.optString("commandId").ifBlank { "relay-${System.currentTimeMillis()}" },
+                    type = "prompt",
+                    title = sourceLabel.ifBlank { "Linked Surface" },
+                    body = messageText,
+                    actions = emptyList(),
+                )
+
+                if (fromDevice.isNotBlank() && clientMessageId.isNotBlank()) {
+                    scope.launch {
+                        sendDirectCommand(
+                            toDevice = fromDevice,
+                            intent = "relay_receipt",
+                            payload = JSONObject().apply {
+                                put("clientMessageId", clientMessageId)
+                                put("status", "seen")
+                                put("byDevice", deviceId)
+                                put("respondedFromLabel", "Watch")
+                                put("respondedFromSurface", "watch")
+                            },
+                        )
+                    }
+                }
             }
             "presence_probe" -> {
                 if (fromDevice.isNotBlank()) {
@@ -425,6 +476,10 @@ class DeviceBusClient(private val context: Context) {
         _pairingSession.value = null
 
         LfseSeam.initialize(deviceId = deviceId, userId = userId, authToken = authToken)
+
+        // Credentials became available after pairing; restart reconnect loop now
+        // instead of waiting for the current backoff window to expire.
+        startReconnectLoop()
     }
 
     suspend fun clearCredentials() {

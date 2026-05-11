@@ -43,6 +43,7 @@ fun SettingsScreen(
     busClient: DeviceBusClient,
     paired: Boolean,
     connected: Boolean,
+    onOpenPairing: () -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -173,6 +174,13 @@ fun SettingsScreen(
             enabled = !actionLocked,
         ) {
             Text(if (biometricIngestEnabled) "Biometric: ON" else "Biometric: OFF")
+        }
+
+        Button(
+            onClick = onOpenPairing,
+            enabled = !actionLocked,
+        ) {
+            Text("Reopen Pairing QR")
         }
 
         if (healthEvents.isNotEmpty()) {

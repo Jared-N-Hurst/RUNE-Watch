@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -37,19 +38,11 @@ fun PairingScreen(busClient: DeviceBusClient, onContinue: () -> Unit) {
     var session by remember { mutableStateOf<PairingSession?>(null) }
     var sessionError by remember { mutableStateOf<String?>(null) }
     var pairingComplete by remember { mutableStateOf(false) }
+    val connected by busClient.connected.collectAsState()
 
     LaunchedEffect(Unit) {
         session = runCatching { busClient.ensurePairingSession() }
             .onFailure { sessionError = "Could not prepare pairing right now." }
-            .getOrNull()
-    }
-
-    LaunchedEffect(session?.timestamp) {
-        val current = session ?: return@LaunchedEffect
-        val refreshDelayMs = (55_000L - (System.currentTimeMillis() - current.timestamp)).coerceAtLeast(1_000L)
-        delay(refreshDelayMs)
-        session = runCatching { busClient.ensurePairingSession(forceRefresh = true) }
-            .onFailure { sessionError = "Could not refresh pairing right now." }
             .getOrNull()
     }
 
@@ -65,10 +58,14 @@ fun PairingScreen(busClient: DeviceBusClient, onContinue: () -> Unit) {
         }
     }
 
-    LaunchedEffect(pairingComplete) {
+    LaunchedEffect(pairingComplete, connected) {
         if (!pairingComplete) return@LaunchedEffect
-        // Auto-continue so users are not stranded on QR after successful pairing.
-        delay(700L)
+        // Prefer transitioning once socket is up, but avoid trapping users.
+        if (!connected) {
+            delay(6_000L)
+        } else {
+            delay(700L)
+        }
         onContinue()
     }
 
@@ -87,13 +84,6 @@ fun PairingScreen(busClient: DeviceBusClient, onContinue: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.padding(12.dp),
         ) {
-            KatiahGlyph(
-                emotionalColor = Color(0xFFFF7043),
-                pulseStrength = 0.8f,
-                pulseDuration = 2300,
-                size = 58.dp,
-            )
-
             Text(
                 text = "Pair with phone",
                 fontSize = 13.sp,
@@ -124,7 +114,7 @@ fun PairingScreen(busClient: DeviceBusClient, onContinue: () -> Unit) {
 
             if (pairingComplete) {
                 Text(
-                    text = "Watch paired. Opening Ember…",
+                    text = if (connected) "Watch paired. Opening Ember…" else "Watch paired. Connecting…",
                     fontSize = 10.sp,
                     color = Color(0xFFA5D6A7),
                     textAlign = TextAlign.Center,

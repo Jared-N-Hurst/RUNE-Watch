@@ -72,7 +72,7 @@ class EmberTileService : TileService() {
                 )
                 .build()
 
-            val orbitStep = ((now / 3_750L) % 8L).toInt()
+            val orbitStep = ((now / 8_131L) % 8L).toInt()
             val runeSymbols = listOf("ᚱ", "ᚢ", "ᚾ", "ᛖ", "ᛟ", "ᚠ", "ᛗ", "ᛁ")
             val runeStyle = FontStyle.Builder()
                 .setSize(DimensionBuilders.sp(10f))
@@ -111,14 +111,14 @@ class EmberTileService : TileService() {
                     .build()
 
             fun orbitRune(symbol: String, slot: Int): LayoutElementBuilders.Box = when (slot) {
-                0 -> paddedBox(top = 2f, bottom = 72f, content = runeGlyph(symbol))
-                1 -> paddedBox(top = 12f, bottom = 54f, start = 58f, end = 8f, content = runeGlyph(symbol))
-                2 -> paddedBox(top = 0f, bottom = 0f, start = 72f, end = 2f, content = runeGlyph(symbol))
-                3 -> paddedBox(top = 54f, bottom = 12f, start = 58f, end = 8f, content = runeGlyph(symbol))
-                4 -> paddedBox(top = 72f, bottom = 2f, content = runeGlyph(symbol))
-                5 -> paddedBox(top = 54f, bottom = 12f, start = 8f, end = 58f, content = runeGlyph(symbol))
-                6 -> paddedBox(top = 0f, bottom = 0f, start = 2f, end = 72f, content = runeGlyph(symbol))
-                else -> paddedBox(top = 12f, bottom = 54f, start = 8f, end = 58f, content = runeGlyph(symbol))
+                0 -> paddedBox(top = 6f, bottom = 68f, content = runeGlyph(symbol))
+                1 -> paddedBox(top = 16f, bottom = 50f, start = 54f, end = 12f, content = runeGlyph(symbol))
+                2 -> paddedBox(top = 0f, bottom = 0f, start = 68f, end = 6f, content = runeGlyph(symbol))
+                3 -> paddedBox(top = 50f, bottom = 16f, start = 54f, end = 12f, content = runeGlyph(symbol))
+                4 -> paddedBox(top = 68f, bottom = 6f, content = runeGlyph(symbol))
+                5 -> paddedBox(top = 50f, bottom = 16f, start = 12f, end = 54f, content = runeGlyph(symbol))
+                6 -> paddedBox(top = 0f, bottom = 0f, start = 6f, end = 68f, content = runeGlyph(symbol))
+                else -> paddedBox(top = 16f, bottom = 50f, start = 12f, end = 54f, content = runeGlyph(symbol))
             }
 
             val glow = LayoutElementBuilders.Text.Builder()
@@ -135,8 +135,8 @@ class EmberTileService : TileService() {
                 .setText("○")
                 .setFontStyle(
                     FontStyle.Builder()
-                        .setSize(DimensionBuilders.sp(55f))
-                        .setColor(ColorBuilders.argb(0xCCFF7A45.toInt()))
+                        .setSize(DimensionBuilders.sp(50f))
+                        .setColor(ColorBuilders.argb(0xAAFF7A45.toInt()))
                         .build()
                 )
                 .build()
@@ -145,7 +145,7 @@ class EmberTileService : TileService() {
                 .setText("●")
                 .setFontStyle(
                     FontStyle.Builder()
-                        .setSize(DimensionBuilders.sp(31f))
+                        .setSize(DimensionBuilders.sp(30f))
                         .setColor(ColorBuilders.argb(emberFrame.emberColorArgb))
                         .build()
                 )
@@ -196,7 +196,7 @@ class EmberTileService : TileService() {
 
             TileBuilders.Tile.Builder()
                 .setResourcesVersion("1")
-                .setFreshnessIntervalMillis(1_500L)
+                .setFreshnessIntervalMillis(2_200L)
                 .setTileTimeline(
                     TimelineBuilders.Timeline.fromLayoutElement(stack)
                 )

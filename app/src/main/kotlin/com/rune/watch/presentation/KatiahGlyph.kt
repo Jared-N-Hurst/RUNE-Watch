@@ -1,6 +1,7 @@
 // Copyright (c) RUNE Systems LLC 2026
 package com.rune.watch.presentation
 
+import android.graphics.Paint
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
@@ -10,10 +11,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.sin
@@ -48,17 +51,15 @@ fun KatiahGlyph(
     emotionalColor: Color = Color(0xFFFF7043), // Ember Orange by default
     pulseStrength: Float = 0.62f,
     pulseDuration: Int = 3100, // idle pulse: 3.1s
-    size: Dp = 80.dp,
+    size: Dp = 100.dp,
     connected: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "glyph_pulse")
-    
-    // Determine base opacity from connection state
+
     val baseOpacity = if (connected) 1.0f else 0.5f
     val effectiveStrength = if (connected) pulseStrength else pulseStrength * 0.4f
-    
-    // Pulse animation: oscillate from 0 to 1
+
     val pulseFraction by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
@@ -68,26 +69,38 @@ fun KatiahGlyph(
         ),
         label = "pulse_fraction"
     )
-    
-    // Orbit animation for thinking state: continuous rotation
+
+    val pulseWave = sin(pulseFraction * PI).toFloat()
     val orbitRotation by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(pulseDuration, easing = LinearEasing),
+            animation = tween(
+                durationMillis = when {
+                    pulseStrength > 0.95f -> 5328
+                    pulseStrength > 0.8f -> 6584
+                    else -> 9099
+                },
+                easing = LinearEasing,
+            ),
             repeatMode = RepeatMode.Restart
         ),
         label = "orbit_rotation"
     )
-    
-    // Calculate scale: oscillate between 1 - 0.012*strength and 1 + 0.06*strength
+
     val scaleMin = 1f - (0.012f * effectiveStrength)
     val scaleMax = 1f + (0.06f * effectiveStrength)
     val scale = scaleMin + (pulseFraction * (scaleMax - scaleMin))
-    
-    // Calculate opacity: 0.84 at start/end, 1.0 at peak (using sine for smooth curve)
-    val opacityPulse = sin(pulseFraction * PI).toFloat()
-    val opacity = (0.84f + (opacityPulse * 0.16f)) * baseOpacity
+    val pulseRingScale = 1.08f + (pulseWave * 0.16f * effectiveStrength)
+    val opacity = (0.84f + (pulseWave * 0.16f)) * baseOpacity
+    val runeSymbols = listOf("ᚱ", "ᚢ", "ᚾ", "ᛖ", "ᛟ", "ᚠ", "ᛗ", "ᛁ")
+    val runeColor = lerp(emotionalColor, Color(0xFFFFFFFF), 0.46f)
+    val runePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        textSize = size.value * 0.13f
+        color = runeColor.copy(alpha = 0.96f * baseOpacity).toArgb()
+        setShadowLayer(size.value * 0.03f, 0f, 0f, Color.Black.copy(alpha = 0.45f).toArgb())
+    }
     
     Box(
         modifier = modifier.size(size),
@@ -100,72 +113,73 @@ fun KatiahGlyph(
         ) {
             val canvasSize = this.size.minDimension
             val center = canvasSize / 2f
-            val radius = canvasSize * 0.35f
-            val strokeWidth = canvasSize * 0.08f
-            
-            // Outer circle
+            val coreRadius = canvasSize * 0.285f
+            val outerRingRadius = canvasSize * 0.355f
+            val strokeWidth = canvasSize * 0.021f
+            val compactGlyph = canvasSize <= 100f
+            val orbitCenterX = center
+
+            runePaint.textSize = canvasSize * if (compactGlyph) 0.080f else 0.090f
+
             drawCircle(
-                color = emotionalColor.copy(alpha = opacity),
-                radius = radius,
+                color = emotionalColor.copy(alpha = 0.13f * opacity),
+                radius = coreRadius * 1.45f,
+            )
+
+            drawCircle(
+                color = emotionalColor.copy(alpha = 0.22f * opacity),
+                radius = outerRingRadius * pulseRingScale,
                 style = Stroke(
                     width = strokeWidth,
                     cap = StrokeCap.Round,
-                    join = StrokeJoin.Round
-                )
+                    join = StrokeJoin.Round,
+                ),
             )
-            
-            // Inner circle (smaller)
+
             drawCircle(
-                color = emotionalColor.copy(alpha = opacity * 0.7f),
-                radius = radius * 0.4f,
+                color = emotionalColor.copy(alpha = opacity * 0.95f),
+                radius = coreRadius,
+            )
+
+            drawCircle(
+                color = emotionalColor.copy(alpha = opacity * 0.34f),
+                radius = coreRadius * 0.72f,
+            )
+
+            drawCircle(
+                color = emotionalColor.copy(alpha = opacity * 0.62f),
+                radius = coreRadius * 0.24f,
+            )
+
+            drawCircle(
+                color = emotionalColor.copy(alpha = opacity * 0.32f),
+                radius = outerRingRadius,
                 style = Stroke(
-                    width = strokeWidth * 0.6f,
+                    width = strokeWidth * 0.75f,
                     cap = StrokeCap.Round,
-                    join = StrokeJoin.Round
+                    join = StrokeJoin.Round,
                 )
             )
-            
-            // Vertical line
-            drawLine(
-                color = emotionalColor.copy(alpha = opacity * 0.6f),
-                start = androidx.compose.ui.geometry.Offset(center, center - radius * 0.8f),
-                end = androidx.compose.ui.geometry.Offset(center, center + radius * 0.8f),
-                strokeWidth = strokeWidth * 0.7f,
-                cap = StrokeCap.Round
-            )
-            
-            // Horizontal line
-            drawLine(
-                color = emotionalColor.copy(alpha = opacity * 0.6f),
-                start = androidx.compose.ui.geometry.Offset(center - radius * 0.8f, center),
-                end = androidx.compose.ui.geometry.Offset(center + radius * 0.8f, center),
-                strokeWidth = strokeWidth * 0.7f,
-                cap = StrokeCap.Round
-            )
-            
-            // Orbit rings for thinking state (connected only)
-            if (connected && pulseStrength > 0.85f) {
-                rotate(orbitRotation, pivot = androidx.compose.ui.geometry.Offset(center, center)) {
-                    // Outer orbit ring at 45°
+
+            val runeRadius = canvasSize * if (compactGlyph) 0.54f else 0.48f
+            runeSymbols.forEachIndexed { index, symbol ->
+                val angle = ((orbitRotation + (index * 45f)) * PI / 180f).toFloat()
+                val x = orbitCenterX + cos(angle) * runeRadius
+                val y = center + sin(angle) * runeRadius + (runePaint.textSize * 0.35f)
+                drawContext.canvas.nativeCanvas.drawText(symbol, x, y, runePaint)
+            }
+
+            if (connected) {
+                val orbitDotRadius = canvasSize * if (compactGlyph) 0.50f else 0.44f
+                repeat(3) { index ->
+                    val angle = ((orbitRotation + index * 120f + 18f) * PI / 180f).toFloat()
                     drawCircle(
-                        color = emotionalColor.copy(alpha = opacity * 0.3f),
-                        radius = radius * 1.3f,
-                        style = Stroke(
-                            width = strokeWidth * 0.4f,
-                            cap = StrokeCap.Round,
-                            join = StrokeJoin.Round
-                        )
-                    )
-                    
-                    // Middle orbit ring at 135°
-                    drawCircle(
-                        color = emotionalColor.copy(alpha = opacity * 0.25f),
-                        radius = radius * 1.6f,
-                        style = Stroke(
-                            width = strokeWidth * 0.3f,
-                            cap = StrokeCap.Round,
-                            join = StrokeJoin.Round
-                        )
+                        color = emotionalColor.copy(alpha = opacity * 0.55f),
+                        radius = strokeWidth * 1.15f,
+                        center = androidx.compose.ui.geometry.Offset(
+                            orbitCenterX + cos(angle) * orbitDotRadius,
+                            center + sin(angle) * orbitDotRadius,
+                        ),
                     )
                 }
             }

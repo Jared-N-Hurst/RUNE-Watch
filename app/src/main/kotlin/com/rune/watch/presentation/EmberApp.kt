@@ -1,6 +1,10 @@
 ﻿// Copyright (c) RUNE Systems LLC 2026
 package com.rune.watch.presentation
 
+import android.content.Intent
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -13,8 +17,10 @@ import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import com.rune.watch.bus.DeviceBusClient
-import com.rune.watch.settings.WatchSettingsStore
 import com.rune.watch.presentation.theme.EmberWatchTheme
+import com.rune.watch.settings.WatchSettingsStore
+import java.util.Locale
+import java.util.UUID
 
 @Composable
 fun EmberApp(busClient: DeviceBusClient) {
@@ -24,31 +30,71 @@ fun EmberApp(busClient: DeviceBusClient) {
 
     EmberWatchTheme(themeMode = themeMode) {
         val paired by busClient.paired.collectAsState()
-        var showPairing by rememberSaveable { mutableStateOf(!paired) }
-
-        LaunchedEffect(paired) {
-            showPairing = !paired
-        }
-
-        if (showPairing) {
-            PairingScreen(
-                busClient = busClient,
-                onContinue = {
-                    if (paired) {
-                        showPairing = false
-                    }
-                },
-            )
-            return@EmberWatchTheme
-        }
-
         val navController = rememberSwipeDismissableNavController()
         val connected by busClient.connected.collectAsState()
         val emberState by busClient.emberState.collectAsState()
+        val watchDeviceId by busClient.deviceIdState.collectAsState()
+        var voiceDraftState by rememberSaveable { mutableStateOf("") }
+        var voiceListening by rememberSaveable { mutableStateOf(false) }
+
+        LaunchedEffect(paired) {
+            if (!paired) {
+                navController.navigate("pairing") {
+                    launchSingleTop = true
+                }
+            }
+        }
+
+        val speechLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.StartActivityForResult(),
+        ) { result ->
+            voiceListening = false
+            val transcript = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+                ?.trim()
+                .orEmpty()
+            if (transcript.isNotBlank()) {
+                voiceDraftState = transcript
+            }
+        }
+
+        fun launchVoiceCapture() {
+            voiceListening = true
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to Ember")
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
+                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            }
+            runCatching {
+                speechLauncher.launch(intent)
+            }.onFailure {
+                voiceListening = false
+                voiceDraftState = "Voice input is unavailable on this watch right now."
+            }
+        }
+
+        fun sendVoiceDraft() {
+            val text = voiceDraftState.trim()
+            if (text.isBlank()) return
+            busClient.sendCommand(
+                intent = "relay_message",
+                payload = mapOf(
+                    "text" to text,
+                    "clientMessageId" to UUID.randomUUID().toString(),
+                    "sourceDeviceId" to watchDeviceId,
+                    "sourceLabel" to "Watch",
+                    "sourceSurface" to "watch",
+                ),
+            )
+            voiceDraftState = ""
+        }
 
         SwipeDismissableNavHost(
             navController = navController,
-            startDestination = "ember"
+            startDestination = if (paired) "ember" else "pairing"
         ) {
             composable("ember") {
                 EmberScreen(
@@ -57,10 +103,47 @@ fun EmberApp(busClient: DeviceBusClient) {
                     onOpenSettings = {
                         navController.navigate("settings")
                     },
-                    onSendCommand = { intent, payload ->
-                        busClient.sendCommand(intent, payload)
+                    onOpenBiometrics = {
+                        navController.navigate("biometrics")
+                    },
+                    onOpenPairing = {
+                        navController.navigate("pairing")
+                    },
+                    onOpenChat = {
+                        navController.navigate("chat")
+                    },
+                    onOpenChatVoice = {
+                        launchVoiceCapture()
+                        navController.navigate("chat")
                     },
                     busClient = busClient,
+                )
+            }
+
+            composable("chat") {
+                ChatScreen(
+                    voiceDraft = voiceDraftState,
+                    voiceListening = voiceListening,
+                    onOpenVoiceCapture = ::launchVoiceCapture,
+                    onSendVoiceDraft = ::sendVoiceDraft,
+                    onClearVoiceDraft = {
+                        voiceDraftState = ""
+                    },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+
+            composable("pairing") {
+                PairingScreen(
+                    busClient = busClient,
+                    onContinue = {
+                        if (paired) {
+                            navController.navigate("ember") {
+                                popUpTo("pairing") { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    },
                 )
             }
 
@@ -69,6 +152,15 @@ fun EmberApp(busClient: DeviceBusClient) {
                     busClient = busClient,
                     paired = paired,
                     connected = connected,
+                    onOpenPairing = {
+                        navController.navigate("pairing")
+                    },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+
+            composable("biometrics") {
+                BiometricsScreen(
                     onBack = { navController.popBackStack() },
                 )
             }

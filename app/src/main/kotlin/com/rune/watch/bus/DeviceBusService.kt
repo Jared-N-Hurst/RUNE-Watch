@@ -129,11 +129,19 @@ class DeviceBusService : Service() {
 
         biometricJob = serviceScope.launch {
             while (isActive) {
-                val enabled = WatchSettingsStore.biometricIngestEnabledFlow(applicationContext).first()
+                val prefs = WatchSettingsStore.biometricStreamPrefsFlow(applicationContext).first()
                 val client = DeviceBusRuntime.client(applicationContext)
-                if (enabled && client.paired.value) {
+                if (prefs.enabled && client.paired.value) {
                     val snapshot = HealthMonitor.readSnapshotAsync(applicationContext)
-                    val uploaded = client.uploadBiometricSnapshot(snapshot.toApiData())
+                    val uploaded = client.uploadBiometricSnapshot(
+                        snapshot.toApiData(
+                            includeHeartRate = prefs.heartRate,
+                            includeHrv = prefs.hrv,
+                            includeStress = prefs.stress,
+                            includeSleep = prefs.sleep,
+                            includeMovement = prefs.movement,
+                        )
+                    )
                     DeviceBusRuntime.logBiometricUpload(uploaded)
                 }
                 delay(20_000L)

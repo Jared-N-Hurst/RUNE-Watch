@@ -14,17 +14,23 @@ data class BiometricSnapshot(
     val lastUpdated: String,
     val source: String = "rune-watch",
 ) {
-    fun toApiData(): Map<String, Any> {
+    fun toApiData(
+        includeHeartRate: Boolean = true,
+        includeHrv: Boolean = true,
+        includeStress: Boolean = true,
+        includeSleep: Boolean = true,
+        includeMovement: Boolean = true,
+    ): Map<String, Any> {
         val payload = mutableMapOf<String, Any>(
-            "sleepState" to sleepState,
-            "movementState" to movementState,
             "lastUpdated" to lastUpdated,
             "source" to source,
         )
 
-        heartRate?.let { payload["heartRate"] = it }
-        hrv?.let { payload["hrv"] = it }
-        stressLevel?.let { payload["stressLevel"] = it }
+        if (includeSleep) payload["sleepState"] = sleepState
+        if (includeMovement) payload["movementState"] = movementState
+        if (includeHeartRate) heartRate?.let { payload["heartRate"] = it }
+        if (includeHrv) hrv?.let { payload["hrv"] = it }
+        if (includeStress) stressLevel?.let { payload["stressLevel"] = it }
 
         return payload
     }

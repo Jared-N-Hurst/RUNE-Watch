@@ -3,17 +3,33 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Outer glow ring -->
+    <!-- Ambient glow -->
     <path
-        android:fillColor="#33F5A623"
-        android:pathData="M54,18 C34.12,18 18,34.12 18,54 C18,73.88 34.12,90 54,90 C73.88,90 90,73.88 90,54 C90,34.12 73.88,18 54,18 Z M54,24 C70.57,24 84,37.43 84,54 C84,70.57 70.57,84 54,84 C37.43,84 24,70.57 24,54 C24,37.43 37.43,24 54,24 Z" />
-    <!-- Ember flame core -->
+        android:fillColor="#29FF8A4C"
+        android:pathData="M54,12 C30.8,12 12,30.8 12,54 C12,77.2 30.8,96 54,96 C77.2,96 96,77.2 96,54 C96,30.8 77.2,12 54,12 Z" />
+
+    <!-- Thin outer ring -->
     <path
-        android:fillColor="#F5A623"
-        android:pathData="M54,30 C54,30 42,46 42,56 C42,62.63 47.37,68 54,68 C60.63,68 66,62.63 66,56 C66,46 54,30 54,30 Z" />
-    <!-- Inner bright point -->
+        android:fillColor="#CCFF7A45"
+        android:pathData="M54,20 C35.22,20 20,35.22 20,54 C20,72.78 35.22,88 54,88 C72.78,88 88,72.78 88,54 C88,35.22 72.78,20 54,20 Z M54,23.8 C70.68,23.8 84.2,37.32 84.2,54 C84.2,70.68 70.68,84.2 54,84.2 C37.32,84.2 23.8,70.68 23.8,54 C23.8,37.32 37.32,23.8 54,23.8 Z" />
+
+    <!-- Ember core orb -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,46 C54,46 48,54 48,58 C48,61.31 50.69,64 54,64 C57.31,64 60,61.31 60,58 C60,54 54,46 54,46 Z"
-        android:fillAlpha="0.8" />
+        android:fillColor="#FF8A4C"
+        android:pathData="M54,27 C39.09,27 27,39.09 27,54 C27,68.91 39.09,81 54,81 C68.91,81 81,68.91 81,54 C81,39.09 68.91,27 54,27 Z" />
+
+    <!-- Inner orb glow -->
+    <path
+        android:fillColor="#66FFB079"
+        android:pathData="M54,35 C43.51,35 35,43.51 35,54 C35,64.49 43.51,73 54,73 C64.49,73 73,64.49 73,54 C73,43.51 64.49,35 54,35 Z" />
+
+    <!-- Core highlight -->
+    <path
+        android:fillColor="#99FFD7B6"
+        android:pathData="M46,43 C43.24,43 41,45.24 41,48 C41,50.76 43.24,53 46,53 C48.76,53 51,50.76 51,48 C51,45.24 48.76,43 46,43 Z" />
+
+    <!-- Pair-status dot -->
+    <path
+        android:fillColor="#FF4CAF50"
+        android:pathData="M77,69 C73.69,69 71,71.69 71,75 C71,78.31 73.69,81 77,81 C80.31,81 83,78.31 83,75 C83,71.69 80.31,69 77,69 Z" />
 </vector>
