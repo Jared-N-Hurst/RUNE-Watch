@@ -10,10 +10,12 @@ fun EmberWatchTheme(
     themeMode: String = WatchSettingsStore.THEME_GHOST,
     content: @Composable () -> Unit,
 ) {
-    val colors = if (themeMode == WatchSettingsStore.THEME_LIGHT) {
-        EmberWatchLightColors
-    } else {
-        EmberWatchColors
+    val colors = when (themeMode) {
+        WatchSettingsStore.THEME_LIGHT -> EmberWatchLightColors
+        WatchSettingsStore.THEME_PHOSPHOR -> EmberWatchPhosphorColors
+        WatchSettingsStore.THEME_JADE -> EmberWatchJadeColors
+        WatchSettingsStore.THEME_CRIMSON -> EmberWatchCrimsonColors
+        else -> EmberWatchColors  // THEME_GHOST or default
     }
 
     MaterialTheme(

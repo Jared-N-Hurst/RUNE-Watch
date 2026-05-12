@@ -61,6 +61,8 @@ fun SettingsScreen(
     val userId by busClient.userIdState.collectAsState()
     val themeMode by WatchSettingsStore.themeModeFlow(context)
         .collectAsState(initial = WatchSettingsStore.THEME_GHOST)
+    val fontMode by WatchSettingsStore.fontModeFlow(context)
+        .collectAsState(initial = WatchSettingsStore.FONT_DEFAULT)
     val biometricIngestEnabled by WatchSettingsStore.biometricIngestEnabledFlow(context)
         .collectAsState(initial = true)
     var actionLocked by remember { mutableStateOf(false) }
@@ -167,6 +169,62 @@ fun SettingsScreen(
             enabled = !actionLocked,
         ) {
             Text("Theme: ${themeLabel(themeMode)}")
+        }
+
+        Button(
+            onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_GHOST) } },
+            enabled = !actionLocked,
+        ) {
+            Text(if (themeMode == WatchSettingsStore.THEME_GHOST) "● Ghost" else "◇ Ghost")
+        }
+
+        Button(
+            onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_PHOSPHOR) } },
+            enabled = !actionLocked,
+        ) {
+            Text(if (themeMode == WatchSettingsStore.THEME_PHOSPHOR) "● Phosphor" else "◇ Phosphor")
+        }
+
+        Button(
+            onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_JADE) } },
+            enabled = !actionLocked,
+        ) {
+            Text(if (themeMode == WatchSettingsStore.THEME_JADE) "● Jade" else "◇ Jade")
+        }
+
+        Button(
+            onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_CRIMSON) } },
+            enabled = !actionLocked,
+        ) {
+            Text(if (themeMode == WatchSettingsStore.THEME_CRIMSON) "● Crimson" else "◇ Crimson")
+        }
+
+        Button(
+            onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_LIGHT) } },
+            enabled = !actionLocked,
+        ) {
+            Text(if (themeMode == WatchSettingsStore.THEME_LIGHT) "● Light" else "◇ Light")
+        }
+
+        Text(
+            text = "Font:",
+            fontSize = 12.sp,
+            color = Color.White,
+            textAlign = TextAlign.Center,
+        )
+
+        Button(
+            onClick = { runDebounced { WatchSettingsStore.setFontMode(context, WatchSettingsStore.FONT_DEFAULT) } },
+            enabled = !actionLocked,
+        ) {
+            Text(if (fontMode == WatchSettingsStore.FONT_DEFAULT) "● Default" else "◇ Default")
+        }
+
+        Button(
+            onClick = { runDebounced { WatchSettingsStore.setFontMode(context, WatchSettingsStore.FONT_MONO) } },
+            enabled = !actionLocked,
+        ) {
+            Text(if (fontMode == WatchSettingsStore.FONT_MONO) "● Mono" else "◇ Mono")
         }
 
         Button(

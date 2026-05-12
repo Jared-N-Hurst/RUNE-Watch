@@ -11,10 +11,19 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 object WatchSettingsStore {
+    // Theme constants
     const val THEME_GHOST = "ghost"
     const val THEME_LIGHT = "light"
+    const val THEME_PHOSPHOR = "phosphor"
+    const val THEME_JADE = "jade"
+    const val THEME_CRIMSON = "crimson"
+
+    // Font constants
+    const val FONT_DEFAULT = "default"
+    const val FONT_MONO = "mono"
 
     private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
+    private val KEY_FONT_MODE = stringPreferencesKey("font_mode")
     private val KEY_BIOMETRIC_INGEST_ENABLED = booleanPreferencesKey("biometric_ingest_enabled")
     private val KEY_BIO_HEART_RATE_ENABLED = booleanPreferencesKey("bio_heart_rate_enabled")
     private val KEY_BIO_HRV_ENABLED = booleanPreferencesKey("bio_hrv_enabled")
@@ -34,6 +43,11 @@ object WatchSettingsStore {
     fun themeModeFlow(context: Context): Flow<String> =
         context.applicationContext.emberPrefsDataStore.data
             .map { prefs -> prefs[KEY_THEME_MODE] ?: THEME_GHOST }
+            .distinctUntilChanged()
+
+    fun fontModeFlow(context: Context): Flow<String> =
+        context.applicationContext.emberPrefsDataStore.data
+            .map { prefs -> prefs[KEY_FONT_MODE] ?: FONT_DEFAULT }
             .distinctUntilChanged()
 
     fun biometricIngestEnabledFlow(context: Context): Flow<Boolean> =
@@ -60,6 +74,18 @@ object WatchSettingsStore {
             val current = prefs[KEY_THEME_MODE] ?: THEME_GHOST
             prefs[KEY_THEME_MODE] =
                 if (current == THEME_GHOST) THEME_LIGHT else THEME_GHOST
+        }
+    }
+
+    suspend fun setThemeMode(context: Context, theme: String) {
+        context.applicationContext.emberPrefsDataStore.edit { prefs ->
+            prefs[KEY_THEME_MODE] = theme
+        }
+    }
+
+    suspend fun setFontMode(context: Context, font: String) {
+        context.applicationContext.emberPrefsDataStore.edit { prefs ->
+            prefs[KEY_FONT_MODE] = font
         }
     }
 

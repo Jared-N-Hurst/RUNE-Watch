@@ -47,3 +47,60 @@ val EmberWatchLightColors = Colors(
     onSurfaceVariant = Color(0xFF4A627A),
     onError = Color.White,
 )
+
+// Neo-retro phosphor (neon green on dark)
+val PhosphorGreen = Color(0xFF00FF00)
+val PhosphorGreenDim = Color(0xFF00CC00)
+val EmberWatchPhosphorColors = Colors(
+    primary          = PhosphorGreen,
+    primaryVariant   = PhosphorGreenDim,
+    secondary        = PhosphorGreen,
+    secondaryVariant = PhosphorGreenDim,
+    background       = Color(0xFF0A0A0A),
+    surface          = Color(0xFF151515),
+    error            = Color(0xFFFF3333),
+    onPrimary        = Color.Black,
+    onSecondary      = Color.Black,
+    onBackground     = Color(0xFFE0FFE0),
+    onSurface        = Color(0xFFE0FFE0),
+    onSurfaceVariant = Color(0xFF88DD88),
+    onError          = Color.Black
+)
+
+// Neo-retro jade (neon cyan on dark)
+val JadeCyan = Color(0xFF00FFFF)
+val JadeCyanDim = Color(0xFF00DDDD)
+val EmberWatchJadeColors = Colors(
+    primary          = JadeCyan,
+    primaryVariant   = JadeCyanDim,
+    secondary        = JadeCyan,
+    secondaryVariant = JadeCyanDim,
+    background       = Color(0xFF0A0F0F),
+    surface          = Color(0xFF151A1A),
+    error            = Color(0xFFFF3333),
+    onPrimary        = Color.Black,
+    onSecondary      = Color.Black,
+    onBackground     = Color(0xFFE0FFFF),
+    onSurface        = Color(0xFFE0FFFF),
+    onSurfaceVariant = Color(0xFF88DDDD),
+    onError          = Color.Black
+)
+
+// Neo-retro crimson (bright red on dark)
+val CrimsonRed = Color(0xFFFF0040)
+val CrimsonRedDim = Color(0xFFDD0033)
+val EmberWatchCrimsonColors = Colors(
+    primary          = CrimsonRed,
+    primaryVariant   = CrimsonRedDim,
+    secondary        = CrimsonRed,
+    secondaryVariant = CrimsonRedDim,
+    background       = Color(0xFF0F0A0A),
+    surface          = Color(0xFF1A1515),
+    error            = Color(0xFFFFFF33),
+    onPrimary        = Color.White,
+    onSecondary      = Color.White,
+    onBackground     = Color(0xFFFFE0E8),
+    onSurface        = Color(0xFFFFE0E8),
+    onSurfaceVariant = Color(0xFFDD88AA),
+    onError          = Color.Black
+)
