@@ -11,12 +11,17 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 object WatchSettingsStore {
-    // Theme constants
-    const val THEME_GHOST = "ghost"
-    const val THEME_LIGHT = "light"
+    // Phone-aligned theme constants
+    const val THEME_RUNE_DARK = "rune-dark"
     const val THEME_PHOSPHOR = "phosphor"
     const val THEME_JADE = "jade"
+    const val THEME_VOID = "void"
+    const val THEME_ASH = "ash"
     const val THEME_CRIMSON = "crimson"
+
+    // Legacy values preserved for migration-only normalization
+    private const val THEME_GHOST_LEGACY = "ghost"
+    private const val THEME_LIGHT_LEGACY = "light"
 
     // Font constants
     const val FONT_DEFAULT = "default"
@@ -42,7 +47,12 @@ object WatchSettingsStore {
 
     fun themeModeFlow(context: Context): Flow<String> =
         context.applicationContext.emberPrefsDataStore.data
-            .map { prefs -> prefs[KEY_THEME_MODE] ?: THEME_GHOST }
+            .map { prefs ->
+                when (val raw = prefs[KEY_THEME_MODE] ?: THEME_RUNE_DARK) {
+                    THEME_GHOST_LEGACY, THEME_LIGHT_LEGACY -> THEME_RUNE_DARK
+                    else -> raw
+                }
+            }
             .distinctUntilChanged()
 
     fun fontModeFlow(context: Context): Flow<String> =
@@ -68,14 +78,6 @@ object WatchSettingsStore {
                 )
             }
             .distinctUntilChanged()
-
-    suspend fun toggleThemeMode(context: Context) {
-        context.applicationContext.emberPrefsDataStore.edit { prefs ->
-            val current = prefs[KEY_THEME_MODE] ?: THEME_GHOST
-            prefs[KEY_THEME_MODE] =
-                if (current == THEME_GHOST) THEME_LIGHT else THEME_GHOST
-        }
-    }
 
     suspend fun setThemeMode(context: Context, theme: String) {
         context.applicationContext.emberPrefsDataStore.edit { prefs ->

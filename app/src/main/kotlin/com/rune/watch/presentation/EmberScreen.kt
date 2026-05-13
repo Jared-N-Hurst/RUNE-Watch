@@ -39,12 +39,8 @@ fun EmberScreen(
     val notification by busClient.currentNotification.collectAsState()
     var radialMenuOpen by rememberSaveable { mutableStateOf(false) }
 
-    val emotionalColor = when {
-        !connected -> Color(0xFF7E8A98)
-        emberState.contains("alert", ignoreCase = true) -> Color(0xFFFF7A72)
-        emberState.contains("thinking", ignoreCase = true) -> Color(0xFFC89DFF)
-        else -> Color(0xFFFF8A4C)
-    }
+    val themeAccent = androidx.wear.compose.material.MaterialTheme.colors.primary
+    val emotionalColor = if (!connected) Color(0xFF7E8A98) else themeAccent
 
     val (pulseDuration, pulseStrength) = when {
         emberState.contains("alert", ignoreCase = true) -> 1650 to 1.0f

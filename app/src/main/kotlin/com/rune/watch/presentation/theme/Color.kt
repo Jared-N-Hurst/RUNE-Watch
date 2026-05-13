@@ -4,103 +4,93 @@ package com.rune.watch.presentation.theme
 import androidx.compose.ui.graphics.Color
 import androidx.wear.compose.material.Colors
 
-val EmberOrange     = Color(0xFFFF7043)
-val EmberOrangeDark = Color(0xFFB71C1C)
-val EmberSurface    = Color(0xFF141414)
-val EmberBackground = Color(0xFF0D0D0D)
-val EmberOnSurface  = Color(0xFFF0F0F0)
-
-// Emotional colors (aligned with Portal Katiah system)
-val EmotionalRed    = Color(0xFFFF7A72)    // Alert state
-val EmotionalViolet = Color(0xFFC89DFF)    // Thinking state
-val EmotionalBlue   = Color(0xFF8FD9FF)    // Contemplative
-val EmotionalAmber  = Color(0xFFFFCF88)    // Idle/default
-
-val EmberWatchColors = Colors(
-    primary          = EmberOrange,
-    primaryVariant   = EmberOrangeDark,
-    secondary        = EmberOrange,
-    secondaryVariant = EmberOrangeDark,
-    background       = EmberBackground,
-    surface          = EmberSurface,
-    error            = Color(0xFFCF6679),
-    onPrimary        = Color.Black,
-    onSecondary      = Color.Black,
-    onBackground     = EmberOnSurface,
-    onSurface        = EmberOnSurface,
-    onSurfaceVariant = Color(0xFFAAAAAA),
-    onError          = Color.Black
+private fun runeColors(
+    accent: Color,
+    line: Color,
+    bg: Color,
+    bgAlt: Color,
+    text: Color,
+    textSoft: Color,
+    danger: Color,
+    success: Color,
+): Colors = Colors(
+    primary = accent,
+    primaryVariant = line,
+    secondary = accent,
+    secondaryVariant = line,
+    background = bg,
+    surface = bgAlt,
+    error = danger,
+    onPrimary = Color.Black,
+    onSecondary = Color.Black,
+    onBackground = text,
+    onSurface = text,
+    onSurfaceVariant = textSoft,
+    onError = Color.Black,
 )
 
-val EmberWatchLightColors = Colors(
-    primary = Color(0xFF1565C0),
-    primaryVariant = Color(0xFF0D47A1),
-    secondary = Color(0xFF039BE5),
-    secondaryVariant = Color(0xFF0277BD),
-    background = Color(0xFFF4F7FB),
-    surface = Color(0xFFFFFFFF),
-    error = Color(0xFFB00020),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onBackground = Color(0xFF102338),
-    onSurface = Color(0xFF102338),
-    onSurfaceVariant = Color(0xFF4A627A),
-    onError = Color.White,
+val EmberWatchRuneDarkColors = runeColors(
+    accent = Color(0xFF00E5FF),
+    line = Color(0xFF173145),
+    bg = Color(0xFF000000),
+    bgAlt = Color(0xFF0A0A0A),
+    text = Color(0xFFFFFFFF),
+    textSoft = Color(0xFF7A9BAC),
+    danger = Color(0xFFEF5350),
+    success = Color(0xFF66BB6A),
 )
 
-// Neo-retro phosphor (neon green on dark)
-val PhosphorGreen = Color(0xFF00FF00)
-val PhosphorGreenDim = Color(0xFF00CC00)
-val EmberWatchPhosphorColors = Colors(
-    primary          = PhosphorGreen,
-    primaryVariant   = PhosphorGreenDim,
-    secondary        = PhosphorGreen,
-    secondaryVariant = PhosphorGreenDim,
-    background       = Color(0xFF0A0A0A),
-    surface          = Color(0xFF151515),
-    error            = Color(0xFFFF3333),
-    onPrimary        = Color.Black,
-    onSecondary      = Color.Black,
-    onBackground     = Color(0xFFE0FFE0),
-    onSurface        = Color(0xFFE0FFE0),
-    onSurfaceVariant = Color(0xFF88DD88),
-    onError          = Color.Black
+val EmberWatchPhosphorColors = runeColors(
+    accent = Color(0xFFFFB300),
+    line = Color(0xFF3D2E00),
+    bg = Color(0xFF080600),
+    bgAlt = Color(0xFF110E00),
+    text = Color(0xFFFFE082),
+    textSoft = Color(0xFF8A7040),
+    danger = Color(0xFFFF6D00),
+    success = Color(0xFFC6FF00),
 )
 
-// Neo-retro jade (neon cyan on dark)
-val JadeCyan = Color(0xFF00FFFF)
-val JadeCyanDim = Color(0xFF00DDDD)
-val EmberWatchJadeColors = Colors(
-    primary          = JadeCyan,
-    primaryVariant   = JadeCyanDim,
-    secondary        = JadeCyan,
-    secondaryVariant = JadeCyanDim,
-    background       = Color(0xFF0A0F0F),
-    surface          = Color(0xFF151A1A),
-    error            = Color(0xFFFF3333),
-    onPrimary        = Color.Black,
-    onSecondary      = Color.Black,
-    onBackground     = Color(0xFFE0FFFF),
-    onSurface        = Color(0xFFE0FFFF),
-    onSurfaceVariant = Color(0xFF88DDDD),
-    onError          = Color.Black
+val EmberWatchJadeColors = runeColors(
+    accent = Color(0xFF00E676),
+    line = Color(0xFF003314),
+    bg = Color(0xFF000A03),
+    bgAlt = Color(0xFF001206),
+    text = Color(0xFFCCFFE0),
+    textSoft = Color(0xFF4A7A5A),
+    danger = Color(0xFFFF5252),
+    success = Color(0xFFB9F6CA),
 )
 
-// Neo-retro crimson (bright red on dark)
-val CrimsonRed = Color(0xFFFF0040)
-val CrimsonRedDim = Color(0xFFDD0033)
-val EmberWatchCrimsonColors = Colors(
-    primary          = CrimsonRed,
-    primaryVariant   = CrimsonRedDim,
-    secondary        = CrimsonRed,
-    secondaryVariant = CrimsonRedDim,
-    background       = Color(0xFF0F0A0A),
-    surface          = Color(0xFF1A1515),
-    error            = Color(0xFFFFFF33),
-    onPrimary        = Color.White,
-    onSecondary      = Color.White,
-    onBackground     = Color(0xFFFFE0E8),
-    onSurface        = Color(0xFFFFE0E8),
-    onSurfaceVariant = Color(0xFFDD88AA),
-    onError          = Color.Black
+val EmberWatchVoidColors = runeColors(
+    accent = Color(0xFFB388FF),
+    line = Color(0xFF2D0057),
+    bg = Color(0xFF050009),
+    bgAlt = Color(0xFF0A000F),
+    text = Color(0xFFE8D5FF),
+    textSoft = Color(0xFF6A4A8A),
+    danger = Color(0xFFFF5252),
+    success = Color(0xFF69F0AE),
+)
+
+val EmberWatchAshColors = runeColors(
+    accent = Color(0xFFCFD8DC),
+    line = Color(0xFF2A2A2E),
+    bg = Color(0xFF0C0C0D),
+    bgAlt = Color(0xFF141416),
+    text = Color(0xFFECEFF1),
+    textSoft = Color(0xFF78909C),
+    danger = Color(0xFFEF5350),
+    success = Color(0xFF66BB6A),
+)
+
+val EmberWatchCrimsonColors = runeColors(
+    accent = Color(0xFFFF1744),
+    line = Color(0xFF4A0010),
+    bg = Color(0xFF0A0002),
+    bgAlt = Color(0xFF140004),
+    text = Color(0xFFFFCDD2),
+    textSoft = Color(0xFF8A2040),
+    danger = Color(0xFFFF6D00),
+    success = Color(0xFF69F0AE),
 )

@@ -7,15 +7,16 @@ import com.rune.watch.settings.WatchSettingsStore
 
 @Composable
 fun EmberWatchTheme(
-    themeMode: String = WatchSettingsStore.THEME_GHOST,
+    themeMode: String = WatchSettingsStore.THEME_RUNE_DARK,
     content: @Composable () -> Unit,
 ) {
     val colors = when (themeMode) {
-        WatchSettingsStore.THEME_LIGHT -> EmberWatchLightColors
         WatchSettingsStore.THEME_PHOSPHOR -> EmberWatchPhosphorColors
         WatchSettingsStore.THEME_JADE -> EmberWatchJadeColors
+        WatchSettingsStore.THEME_VOID -> EmberWatchVoidColors
+        WatchSettingsStore.THEME_ASH -> EmberWatchAshColors
         WatchSettingsStore.THEME_CRIMSON -> EmberWatchCrimsonColors
-        else -> EmberWatchColors  // THEME_GHOST or default
+        else -> EmberWatchRuneDarkColors
     }
 
     MaterialTheme(

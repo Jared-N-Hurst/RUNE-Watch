@@ -9,8 +9,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -60,7 +63,7 @@ fun SettingsScreen(
     val deviceId by busClient.deviceIdState.collectAsState()
     val userId by busClient.userIdState.collectAsState()
     val themeMode by WatchSettingsStore.themeModeFlow(context)
-        .collectAsState(initial = WatchSettingsStore.THEME_GHOST)
+        .collectAsState(initial = WatchSettingsStore.THEME_RUNE_DARK)
     val fontMode by WatchSettingsStore.fontModeFlow(context)
         .collectAsState(initial = WatchSettingsStore.FONT_DEFAULT)
     val biometricIngestEnabled by WatchSettingsStore.biometricIngestEnabledFlow(context)
@@ -86,6 +89,7 @@ fun SettingsScreen(
         !serviceRunning -> "Service already stopped"
         else -> null
     }
+    val wideButtonModifier = Modifier.fillMaxWidth(0.88f)
 
     fun runDebounced(action: suspend () -> Unit) {
         if (actionLocked) return
@@ -104,7 +108,8 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0D0D0D))
-            .padding(14.dp),
+            .padding(14.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -112,6 +117,13 @@ fun SettingsScreen(
             text = "Connection Settings",
             fontSize = 13.sp,
             color = Color.White,
+            textAlign = TextAlign.Center,
+        )
+
+        Text(
+            text = "Settings UI v2",
+            fontSize = 10.sp,
+            color = Color(0xFF90CAF9),
             textAlign = TextAlign.Center,
         )
 
@@ -165,20 +177,15 @@ fun SettingsScreen(
         )
 
         Button(
-            onClick = { runDebounced { WatchSettingsStore.toggleThemeMode(context) } },
+            modifier = wideButtonModifier,
+            onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_RUNE_DARK) } },
             enabled = !actionLocked,
         ) {
-            Text("Theme: ${themeLabel(themeMode)}")
+            Text(if (themeMode == WatchSettingsStore.THEME_RUNE_DARK) "● RUNE-Dark" else "◇ RUNE-Dark")
         }
 
         Button(
-            onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_GHOST) } },
-            enabled = !actionLocked,
-        ) {
-            Text(if (themeMode == WatchSettingsStore.THEME_GHOST) "● Ghost" else "◇ Ghost")
-        }
-
-        Button(
+            modifier = wideButtonModifier,
             onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_PHOSPHOR) } },
             enabled = !actionLocked,
         ) {
@@ -186,6 +193,7 @@ fun SettingsScreen(
         }
 
         Button(
+            modifier = wideButtonModifier,
             onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_JADE) } },
             enabled = !actionLocked,
         ) {
@@ -193,6 +201,7 @@ fun SettingsScreen(
         }
 
         Button(
+            modifier = wideButtonModifier,
             onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_CRIMSON) } },
             enabled = !actionLocked,
         ) {
@@ -200,10 +209,19 @@ fun SettingsScreen(
         }
 
         Button(
-            onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_LIGHT) } },
+            modifier = wideButtonModifier,
+            onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_VOID) } },
             enabled = !actionLocked,
         ) {
-            Text(if (themeMode == WatchSettingsStore.THEME_LIGHT) "● Light" else "◇ Light")
+            Text(if (themeMode == WatchSettingsStore.THEME_VOID) "● Void" else "◇ Void")
+        }
+
+        Button(
+            modifier = wideButtonModifier,
+            onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_ASH) } },
+            enabled = !actionLocked,
+        ) {
+            Text(if (themeMode == WatchSettingsStore.THEME_ASH) "● Ash" else "◇ Ash")
         }
 
         Text(
@@ -214,6 +232,7 @@ fun SettingsScreen(
         )
 
         Button(
+            modifier = wideButtonModifier,
             onClick = { runDebounced { WatchSettingsStore.setFontMode(context, WatchSettingsStore.FONT_DEFAULT) } },
             enabled = !actionLocked,
         ) {
@@ -221,6 +240,7 @@ fun SettingsScreen(
         }
 
         Button(
+            modifier = wideButtonModifier,
             onClick = { runDebounced { WatchSettingsStore.setFontMode(context, WatchSettingsStore.FONT_MONO) } },
             enabled = !actionLocked,
         ) {
@@ -228,6 +248,7 @@ fun SettingsScreen(
         }
 
         Button(
+            modifier = wideButtonModifier,
             onClick = { runDebounced { WatchSettingsStore.toggleBiometricIngest(context) } },
             enabled = !actionLocked,
         ) {
@@ -235,6 +256,7 @@ fun SettingsScreen(
         }
 
         Button(
+            modifier = wideButtonModifier,
             onClick = onOpenPairing,
             enabled = !actionLocked,
         ) {
@@ -250,6 +272,7 @@ fun SettingsScreen(
             )
 
             Button(
+                modifier = wideButtonModifier,
                 onClick = {
                     val clipboard = context.getSystemService(ClipboardManager::class.java)
                     val exported = DeviceBusRuntime.exportHealthSnapshot()
@@ -262,6 +285,7 @@ fun SettingsScreen(
             }
 
             Button(
+                modifier = wideButtonModifier,
                 onClick = { DeviceBusRuntime.clearHealthEvents() },
                 enabled = !actionLocked,
             ) {
@@ -289,6 +313,7 @@ fun SettingsScreen(
                 textAlign = TextAlign.Center,
             )
             Button(
+                modifier = wideButtonModifier,
                 onClick = {
                     showReconnectConfirm = false
                     runDebounced { DeviceBusService.reconnect(context) }
@@ -298,6 +323,7 @@ fun SettingsScreen(
                 Text("Confirm Reconnect")
             }
             Button(
+                modifier = wideButtonModifier,
                 onClick = { showReconnectConfirm = false },
                 enabled = !actionLocked,
             ) {
@@ -305,6 +331,7 @@ fun SettingsScreen(
             }
         } else {
             Button(
+                modifier = wideButtonModifier,
                 onClick = { showReconnectConfirm = true },
                 enabled = !actionLocked,
             ) {
@@ -313,6 +340,7 @@ fun SettingsScreen(
         }
 
         Button(
+            modifier = wideButtonModifier,
             onClick = {
                 showReconnectConfirm = false
                 runDebounced { DeviceBusService.stop(context) }
@@ -332,6 +360,7 @@ fun SettingsScreen(
         }
 
         Button(
+            modifier = wideButtonModifier,
             onClick = {
                 showReconnectConfirm = false
                 runDebounced { DeviceBusService.start(context) }
@@ -349,6 +378,7 @@ fun SettingsScreen(
                 textAlign = TextAlign.Center,
             )
             Button(
+                modifier = wideButtonModifier,
                 onClick = {
                     showLogoutConfirm = false
                     runDebounced {
@@ -362,6 +392,7 @@ fun SettingsScreen(
                 Text("Confirm Log Out")
             }
             Button(
+                modifier = wideButtonModifier,
                 onClick = { showLogoutConfirm = false },
                 enabled = !actionLocked,
             ) {
@@ -369,6 +400,7 @@ fun SettingsScreen(
             }
         } else {
             Button(
+                modifier = wideButtonModifier,
                 onClick = { showLogoutConfirm = true },
                 enabled = !actionLocked,
             ) {
@@ -385,7 +417,7 @@ fun SettingsScreen(
             )
         }
 
-        Button(onClick = onBack) {
+        Button(modifier = wideButtonModifier, onClick = onBack) {
             Text("Back")
         }
     }
@@ -397,6 +429,3 @@ private fun formatHealthEvent(event: HealthEvent): String {
     return "$at ${event.category}: ${event.message}"
 }
 
-private fun themeLabel(themeMode: String): String {
-    return if (themeMode == WatchSettingsStore.THEME_LIGHT) "Light" else "Ghost"
-}

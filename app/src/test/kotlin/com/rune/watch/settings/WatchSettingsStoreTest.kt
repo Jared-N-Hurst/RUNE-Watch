@@ -28,10 +28,10 @@ class WatchSettingsStoreTest {
     }
 
     @Test
-    fun themeDefaulToGhost() = runBlocking {
+    fun themeDefaultToRuneDark() = runBlocking {
         // Simulating the default theme mode logic
-        val mode = WatchSettingsStore.THEME_GHOST
-        assertEquals(WatchSettingsStore.THEME_GHOST, mode)
+        val mode = WatchSettingsStore.THEME_RUNE_DARK
+        assertEquals(WatchSettingsStore.THEME_RUNE_DARK, mode)
     }
 
     @Test
@@ -43,11 +43,11 @@ class WatchSettingsStoreTest {
 
     @Test
     fun themeModesAreDistinct() {
-        val ghost = WatchSettingsStore.THEME_GHOST
-        val light = WatchSettingsStore.THEME_LIGHT
+        val runeDark = WatchSettingsStore.THEME_RUNE_DARK
+        val phosphor = WatchSettingsStore.THEME_PHOSPHOR
 
-        assertTrue(ghost != light)
-        assertEquals("ghost", ghost)
-        assertEquals("light", light)
+        assertTrue(runeDark != phosphor)
+        assertEquals("rune-dark", runeDark)
+        assertEquals("phosphor", phosphor)
     }
 }

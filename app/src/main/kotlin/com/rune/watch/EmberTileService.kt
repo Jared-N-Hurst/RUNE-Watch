@@ -16,6 +16,8 @@ import androidx.wear.protolayout.TimelineBuilders
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.rune.watch.bus.DeviceBusRuntime
+import com.rune.watch.settings.WatchSettingsStore
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -32,14 +34,14 @@ class EmberTileService : TileService() {
         val glowColorArgb: Int,
     )
 
-    private val emberFrames = listOf(
-        EmberFrame(0xFFFF8A50.toInt(), 0x66FFB74D),
-        EmberFrame(0xFFFF6D3A.toInt(), 0x55FF8A50),
-        EmberFrame(0xFFFFB74D.toInt(), 0x66FFD180),
-        EmberFrame(0xFFFF8A50.toInt(), 0x55FF6D3A),
-        EmberFrame(0xFFFF6D3A.toInt(), 0x66FFB74D),
-        EmberFrame(0xFFFFAB40.toInt(), 0x55FF8A50),
-    )
+    private fun themeAccentArgb(themeMode: String): Int = when (themeMode) {
+        WatchSettingsStore.THEME_PHOSPHOR -> 0xFFFFB300.toInt()
+        WatchSettingsStore.THEME_JADE     -> 0xFF00E676.toInt()
+        WatchSettingsStore.THEME_VOID     -> 0xFFB388FF.toInt()
+        WatchSettingsStore.THEME_ASH      -> 0xFFCFD8DC.toInt()
+        WatchSettingsStore.THEME_CRIMSON  -> 0xFFFF1744.toInt()
+        else                              -> 0xFF00E5FF.toInt() // RUNE_DARK
+    }
 
     override fun onResourcesRequest(requestParams: RequestBuilders.ResourcesRequest): ListenableFuture<ResourceBuilders.Resources> {
         return Futures.immediateFuture(
@@ -52,6 +54,17 @@ class EmberTileService : TileService() {
     override fun onTileRequest(requestParams: RequestBuilders.TileRequest): ListenableFuture<TileBuilders.Tile> {
         val tile = runBlocking {
             val now = System.currentTimeMillis()
+            val themeMode = WatchSettingsStore.themeModeFlow(applicationContext).first()
+            val accentArgb = themeAccentArgb(themeMode)
+            val accentRgb = accentArgb and 0x00FFFFFF
+            val emberFrames = listOf(
+                EmberFrame(accentArgb, accentRgb or 0x66000000.toInt()),
+                EmberFrame(accentArgb, accentRgb or 0x44000000.toInt()),
+                EmberFrame(accentArgb, accentRgb or 0x77000000.toInt()),
+                EmberFrame(accentArgb, accentRgb or 0x55000000.toInt()),
+                EmberFrame(accentArgb, accentRgb or 0x66000000.toInt()),
+                EmberFrame(accentArgb, accentRgb or 0x44000000.toInt()),
+            )
             val frameIndex = ((now / 1_500L) % emberFrames.size).toInt()
             val emberFrame = emberFrames[frameIndex]
             val paired = DeviceBusRuntime.client(applicationContext).paired.value
@@ -76,7 +89,7 @@ class EmberTileService : TileService() {
             val runeSymbols = listOf("ᚱ", "ᚢ", "ᚾ", "ᛖ", "ᛟ", "ᚠ", "ᛗ", "ᛁ")
             val runeStyle = FontStyle.Builder()
                 .setSize(DimensionBuilders.sp(10f))
-                .setColor(ColorBuilders.argb(0xFFFDD7A0.toInt()))
+                .setColor(ColorBuilders.argb(accentRgb or 0xCC000000.toInt()))
                 .build()
 
             fun paddedBox(
@@ -136,7 +149,7 @@ class EmberTileService : TileService() {
                 .setFontStyle(
                     FontStyle.Builder()
                         .setSize(DimensionBuilders.sp(50f))
-                        .setColor(ColorBuilders.argb(0xAAFF7A45.toInt()))
+                        .setColor(ColorBuilders.argb(accentRgb or 0xAA000000.toInt()))
                         .build()
                 )
                 .build()

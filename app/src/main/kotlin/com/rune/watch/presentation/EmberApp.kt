@@ -26,7 +26,7 @@ import java.util.UUID
 fun EmberApp(busClient: DeviceBusClient) {
     val context = LocalContext.current
     val themeMode by WatchSettingsStore.themeModeFlow(context)
-        .collectAsState(initial = WatchSettingsStore.THEME_GHOST)
+        .collectAsState(initial = WatchSettingsStore.THEME_RUNE_DARK)
 
     EmberWatchTheme(themeMode = themeMode) {
         val paired by busClient.paired.collectAsState()
