@@ -9,6 +9,7 @@ import com.rune.watch.storage.emberPrefsDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import java.util.Locale
 
 object WatchSettingsStore {
     // Phone-aligned theme constants
@@ -29,6 +30,7 @@ object WatchSettingsStore {
 
     private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
     private val KEY_FONT_MODE = stringPreferencesKey("font_mode")
+    private val KEY_LOCALE_PREFERENCE = stringPreferencesKey("locale_preference")
     private val KEY_BIOMETRIC_INGEST_ENABLED = booleanPreferencesKey("biometric_ingest_enabled")
     private val KEY_BIO_HEART_RATE_ENABLED = booleanPreferencesKey("bio_heart_rate_enabled")
     private val KEY_BIO_HRV_ENABLED = booleanPreferencesKey("bio_hrv_enabled")
@@ -60,6 +62,11 @@ object WatchSettingsStore {
             .map { prefs -> prefs[KEY_FONT_MODE] ?: FONT_DEFAULT }
             .distinctUntilChanged()
 
+    fun localePreferenceFlow(context: Context): Flow<String?> =
+        context.applicationContext.emberPrefsDataStore.data
+            .map { prefs -> prefs[KEY_LOCALE_PREFERENCE]?.trim()?.ifBlank { null } }
+            .distinctUntilChanged()
+
     fun biometricIngestEnabledFlow(context: Context): Flow<Boolean> =
         context.applicationContext.emberPrefsDataStore.data
             .map { prefs -> prefs[KEY_BIOMETRIC_INGEST_ENABLED] ?: true }
@@ -89,6 +96,24 @@ object WatchSettingsStore {
         context.applicationContext.emberPrefsDataStore.edit { prefs ->
             prefs[KEY_FONT_MODE] = font
         }
+    }
+
+    suspend fun setLocalePreference(context: Context, localePreference: String?) {
+        context.applicationContext.emberPrefsDataStore.edit { prefs ->
+            val normalized = localePreference?.trim()?.lowercase(Locale.ROOT).orEmpty()
+            if (normalized.isBlank()) {
+                prefs.remove(KEY_LOCALE_PREFERENCE)
+            } else {
+                prefs[KEY_LOCALE_PREFERENCE] = normalized
+            }
+        }
+    }
+
+    fun resolveLocale(localePreference: String?, fallback: Locale = Locale.getDefault()): Locale {
+        val normalized = localePreference?.trim().orEmpty()
+        if (normalized.isBlank()) return fallback
+        val resolved = Locale.forLanguageTag(normalized)
+        return if (resolved.language.isNullOrBlank() || resolved.language == "und") fallback else resolved
     }
 
     suspend fun toggleBiometricIngest(context: Context) {

@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,11 +31,16 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import com.rune.watch.bus.DeviceBusClient
 import com.rune.watch.bus.PairingSession
+import com.rune.watch.settings.WatchSettingsStore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
 @Composable
 fun PairingScreen(busClient: DeviceBusClient, onContinue: () -> Unit) {
+    val context = LocalContext.current
+    val localePreference by WatchSettingsStore.localePreferenceFlow(context)
+        .collectAsState(initial = null)
+    val currentLocale = WatchSettingsStore.resolveLocale(localePreference)
     var session by remember { mutableStateOf<PairingSession?>(null) }
     var sessionError by remember { mutableStateOf<String?>(null) }
     var pairingComplete by remember { mutableStateOf(false) }
@@ -42,7 +48,7 @@ fun PairingScreen(busClient: DeviceBusClient, onContinue: () -> Unit) {
 
     LaunchedEffect(Unit) {
         session = runCatching { busClient.ensurePairingSession() }
-            .onFailure { sessionError = "Could not prepare pairing right now." }
+            .onFailure { sessionError = watchPairingPrepareError(currentLocale) }
             .getOrNull()
     }
 
@@ -85,7 +91,7 @@ fun PairingScreen(busClient: DeviceBusClient, onContinue: () -> Unit) {
             modifier = Modifier.padding(12.dp),
         ) {
             Text(
-                text = "Pair with phone",
+                text = watchPairingTitle(currentLocale),
                 fontSize = 13.sp,
                 color = Color.White,
                 textAlign = TextAlign.Center,
@@ -94,19 +100,19 @@ fun PairingScreen(busClient: DeviceBusClient, onContinue: () -> Unit) {
             if (qrBitmap != null) {
                 Image(
                     bitmap = qrBitmap.asImageBitmap(),
-                    contentDescription = "Pairing QR",
+                    contentDescription = watchPairingQrDescription(currentLocale),
                     modifier = Modifier.size(120.dp),
                 )
             }
 
             Text(
-                text = session?.pairingCode ?: "Generating code...",
+                text = session?.pairingCode ?: watchPairingGeneratingCode(currentLocale),
                 fontSize = 16.sp,
                 color = Color(0xFFFFCCBC),
             )
 
             Text(
-                text = "Scan in RUNE Client to link this watch.",
+                text = watchPairingScanHint(currentLocale),
                 fontSize = 10.sp,
                 color = Color.White.copy(alpha = 0.8f),
                 textAlign = TextAlign.Center,
@@ -114,13 +120,17 @@ fun PairingScreen(busClient: DeviceBusClient, onContinue: () -> Unit) {
 
             if (pairingComplete) {
                 Text(
-                    text = if (connected) "Watch paired. Opening Ember…" else "Watch paired. Connecting…",
+                    text = if (connected) {
+                        watchPairingConnectedStatus(currentLocale)
+                    } else {
+                        watchPairingConnectingStatus(currentLocale)
+                    },
                     fontSize = 10.sp,
                     color = Color(0xFFA5D6A7),
                     textAlign = TextAlign.Center,
                 )
                 Button(onClick = onContinue) {
-                    Text(text = "Continue")
+                    Text(text = watchPairingContinueText(currentLocale))
                 }
             }
 

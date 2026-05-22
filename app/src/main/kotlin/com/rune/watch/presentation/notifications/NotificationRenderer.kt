@@ -21,13 +21,18 @@ import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.Text
 import com.rune.watch.bus.NotificationAction
 import com.rune.watch.bus.ParsedNotification
+import com.rune.watch.bus.watchNotificationDismissText
+import com.rune.watch.bus.watchNotificationOkText
+import java.util.Locale
 
 @Composable
 fun NotificationRenderer(
     notification: ParsedNotification,
+    currentLocale: Locale,
     onActionSelected: (NotificationAction) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val localePreference = currentLocale.toLanguageTag()
     val accentColor = when (notification.type) {
         "alert" -> Color(0xFFFF7A72)
         "safety" -> Color(0xFFFF8A80)
@@ -107,14 +112,14 @@ fun NotificationRenderer(
             }
         } else {
             Button(onClick = onDismiss) {
-                Text("OK")
+                Text(watchNotificationOkText(localePreference))
             }
         }
 
         Spacer(modifier = Modifier.height(2.dp))
 
         Button(onClick = onDismiss) {
-            Text("Dismiss")
+            Text(watchNotificationDismissText(localePreference))
         }
     }
 }

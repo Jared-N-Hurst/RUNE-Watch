@@ -21,9 +21,11 @@ import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.Text
 import com.rune.watch.settings.WatchSettingsStore
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 @Composable
 fun BiometricsScreen(
+    currentLocale: Locale,
     onBack: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -49,14 +51,14 @@ fun BiometricsScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text = "Biometrics",
+            text = watchBiometricsTitle(currentLocale),
             fontSize = 13.sp,
             color = Color.White,
             textAlign = TextAlign.Center,
         )
 
         Text(
-            text = if (prefs.enabled) "Streaming enabled" else "Streaming disabled",
+            text = watchBiometricsStreamingStatus(prefs.enabled, currentLocale),
             fontSize = 10.sp,
             color = if (prefs.enabled) Color(0xFF4CAF50) else Color(0xFFFFA726),
             textAlign = TextAlign.Center,
@@ -66,7 +68,7 @@ fun BiometricsScreen(
             onClick = { scope.launch { WatchSettingsStore.toggleBiometricIngest(context) } },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (prefs.enabled) "Master: ON" else "Master: OFF")
+            Text(watchBiometricsMasterToggle(prefs.enabled, currentLocale))
         }
 
         Button(
@@ -74,7 +76,7 @@ fun BiometricsScreen(
             modifier = Modifier.fillMaxWidth(),
             enabled = prefs.enabled,
         ) {
-            Text(if (prefs.heartRate) "Heart Rate: ON" else "Heart Rate: OFF")
+            Text(watchBiometricsHeartRateToggle(prefs.heartRate, currentLocale))
         }
 
         Button(
@@ -82,7 +84,7 @@ fun BiometricsScreen(
             modifier = Modifier.fillMaxWidth(),
             enabled = prefs.enabled,
         ) {
-            Text(if (prefs.hrv) "HRV: ON" else "HRV: OFF")
+            Text(watchBiometricsHrvToggle(prefs.hrv, currentLocale))
         }
 
         Button(
@@ -90,7 +92,7 @@ fun BiometricsScreen(
             modifier = Modifier.fillMaxWidth(),
             enabled = prefs.enabled,
         ) {
-            Text(if (prefs.stress) "Stress: ON" else "Stress: OFF")
+            Text(watchBiometricsStressToggle(prefs.stress, currentLocale))
         }
 
         Button(
@@ -98,7 +100,7 @@ fun BiometricsScreen(
             modifier = Modifier.fillMaxWidth(),
             enabled = prefs.enabled,
         ) {
-            Text(if (prefs.sleep) "Sleep: ON" else "Sleep: OFF")
+            Text(watchBiometricsSleepToggle(prefs.sleep, currentLocale))
         }
 
         Button(
@@ -106,14 +108,14 @@ fun BiometricsScreen(
             modifier = Modifier.fillMaxWidth(),
             enabled = prefs.enabled,
         ) {
-            Text(if (prefs.movement) "Movement: ON" else "Movement: OFF")
+            Text(watchBiometricsMovementToggle(prefs.movement, currentLocale))
         }
 
         Button(
             onClick = onBack,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Back")
+            Text(watchBiometricsBack(currentLocale))
         }
     }
 }

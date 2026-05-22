@@ -37,8 +37,6 @@ import com.rune.watch.bus.DeviceBusRuntime.HealthEvent
 import com.rune.watch.bus.DeviceBusService
 import com.rune.watch.bus.WatchPresenceDiagnosticsSnapshot
 import com.rune.watch.settings.WatchSettingsStore
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -70,12 +68,15 @@ fun SettingsScreen(
         .collectAsState(initial = WatchSettingsStore.FONT_DEFAULT)
     val biometricIngestEnabled by WatchSettingsStore.biometricIngestEnabledFlow(context)
         .collectAsState(initial = true)
+    val localePreference by WatchSettingsStore.localePreferenceFlow(context)
+        .collectAsState(initial = null)
     var actionLocked by remember { mutableStateOf(false) }
     var showReconnectConfirm by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var presenceSnapshot by remember { mutableStateOf<WatchPresenceDiagnosticsSnapshot?>(null) }
     var presenceLoading by remember { mutableStateOf(false) }
     var presenceError by remember { mutableStateOf<String?>(null) }
+    val currentLocale = WatchSettingsStore.resolveLocale(localePreference)
 
     fun refreshPresenceSnapshot() {
         scope.launch {
@@ -83,7 +84,7 @@ fun SettingsScreen(
             presenceError = null
             val snapshot = busClient.fetchPresenceDiagnosticsSnapshot()
             if (snapshot == null) {
-                presenceError = "Presence diagnostics unavailable"
+                presenceError = watchPresenceDiagnosticsUnavailable(currentLocale)
             }
             presenceSnapshot = snapshot
             presenceLoading = false
@@ -96,23 +97,11 @@ fun SettingsScreen(
         }
     }
 
-    val reconnectText = lastReconnectAttemptMs?.let {
-        val fmt = SimpleDateFormat("HH:mm:ss", Locale.US)
-        "Last reconnect: ${fmt.format(Date(it))}"
-    } ?: "Last reconnect: none"
+    val reconnectText = watchLastReconnectText(lastReconnectAttemptMs, currentLocale)
 
-    val lastActionText = lastActionAtMs?.let {
-        val fmt = SimpleDateFormat("HH:mm:ss", Locale.US)
-        val action = lastAction ?: "unknown"
-        val result = lastActionResult ?: "unknown"
-        "Last action: ${action} (${result}) @ ${fmt.format(Date(it))}"
-    } ?: "Last action: none"
+    val lastActionText = watchLastActionText(lastActionAtMs, lastAction, lastActionResult, currentLocale)
 
-    val stopDisabledReason = when {
-        !paired -> "Stop disabled until pairing is complete"
-        !serviceRunning -> "Service already stopped"
-        else -> null
-    }
+    val stopDisabledReason = watchStopDisabledReason(paired, serviceRunning, currentLocale)
     val wideButtonModifier = Modifier.fillMaxWidth(0.88f)
 
     fun runDebounced(action: suspend () -> Unit) {
@@ -138,28 +127,28 @@ fun SettingsScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "Connection Settings",
+            text = watchConnectionSettingsTitle(currentLocale),
             fontSize = 13.sp,
             color = Color.White,
             textAlign = TextAlign.Center,
         )
 
         Text(
-            text = "Settings UI v2",
+            text = watchSettingsUiVersionText(currentLocale),
             fontSize = 10.sp,
             color = Color(0xFF90CAF9),
             textAlign = TextAlign.Center,
         )
 
         Text(
-            text = if (connected) "Service: Connected" else "Service: Offline/Reconnecting",
+            text = watchServiceConnectionText(connected, currentLocale),
             fontSize = 11.sp,
             color = if (connected) Color(0xFF4CAF50) else Color(0xFFB0BEC5),
             textAlign = TextAlign.Center,
         )
 
         Text(
-            text = if (serviceRunning) "Runtime: Running" else "Runtime: Stopped",
+            text = watchRuntimeStateText(serviceRunning, currentLocale),
             fontSize = 10.sp,
             color = if (serviceRunning) Color(0xFF8BC34A) else Color(0xFFFFA726),
             textAlign = TextAlign.Center,
@@ -173,7 +162,7 @@ fun SettingsScreen(
         )
 
         Text(
-            text = "Start/Stop/Reconnect: ${startCount}/${stopCount}/${reconnectCount}",
+            text = watchStartStopReconnectText(startCount, stopCount, reconnectCount, currentLocale),
             fontSize = 10.sp,
             color = Color(0xFFB0BEC5),
             textAlign = TextAlign.Center,
@@ -187,21 +176,21 @@ fun SettingsScreen(
         )
 
         Text(
-            text = "Device ID: ${deviceId.take(12)}",
+            text = watchDeviceIdText(deviceId, currentLocale),
             fontSize = 10.sp,
             color = Color(0xFFB0BEC5),
             textAlign = TextAlign.Center,
         )
 
         Text(
-            text = if (userId.isBlank()) "User ID: unpaired" else "User ID: ${userId.take(12)}",
+            text = watchUserIdText(userId, currentLocale),
             fontSize = 10.sp,
             color = Color(0xFFB0BEC5),
             textAlign = TextAlign.Center,
         )
 
         Text(
-            text = "Presence diagnostics",
+            text = watchPresenceDiagnosticsTitle(currentLocale),
             fontSize = 10.sp,
             color = Color(0xFFB0BEC5),
             textAlign = TextAlign.Center,
@@ -212,25 +201,25 @@ fun SettingsScreen(
             onClick = { refreshPresenceSnapshot() },
             enabled = !actionLocked && !presenceLoading,
         ) {
-            Text(if (presenceLoading) "Refreshing Presence..." else "Refresh Presence")
+            Text(watchRefreshPresenceText(presenceLoading, currentLocale))
         }
 
         if (presenceSnapshot != null) {
             val snapshot = presenceSnapshot!!
             Text(
-                text = "Stale: ${snapshot.staleCause}",
+                text = watchStaleText(snapshot.staleCause, currentLocale),
                 fontSize = 10.sp,
                 color = Color(0xFFB0BEC5),
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = "Relay: ${if (snapshot.relayHealthy) "healthy" else "unhealthy"}",
+                text = watchRelayHealthText(snapshot.relayHealthy, currentLocale),
                 fontSize = 10.sp,
                 color = if (snapshot.relayHealthy) Color(0xFF4CAF50) else Color(0xFFD28B6A),
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = "Heartbeat: ${snapshot.heartbeatPath} (${snapshot.lastSeenLabel})",
+                text = watchHeartbeatText(snapshot.heartbeatPath, snapshot.lastSeenLabel, currentLocale),
                 fontSize = 10.sp,
                 color = Color(0xFFB0BEC5),
                 textAlign = TextAlign.Center,
@@ -239,7 +228,7 @@ fun SettingsScreen(
 
         if (presenceError != null) {
             Text(
-                text = presenceError ?: "Presence diagnostics unavailable",
+                text = presenceError ?: watchPresenceDiagnosticsUnavailable(currentLocale),
                 fontSize = 10.sp,
                 color = Color(0xFFFFB74D),
                 textAlign = TextAlign.Center,
@@ -251,7 +240,7 @@ fun SettingsScreen(
             onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_RUNE_DARK) } },
             enabled = !actionLocked,
         ) {
-            Text(if (themeMode == WatchSettingsStore.THEME_RUNE_DARK) "● RUNE-Dark" else "◇ RUNE-Dark")
+            Text(watchThemeOptionText(themeMode == WatchSettingsStore.THEME_RUNE_DARK, WatchSettingsStore.THEME_RUNE_DARK, currentLocale))
         }
 
         Button(
@@ -259,7 +248,7 @@ fun SettingsScreen(
             onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_PHOSPHOR) } },
             enabled = !actionLocked,
         ) {
-            Text(if (themeMode == WatchSettingsStore.THEME_PHOSPHOR) "● Phosphor" else "◇ Phosphor")
+            Text(watchThemeOptionText(themeMode == WatchSettingsStore.THEME_PHOSPHOR, WatchSettingsStore.THEME_PHOSPHOR, currentLocale))
         }
 
         Button(
@@ -267,7 +256,7 @@ fun SettingsScreen(
             onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_JADE) } },
             enabled = !actionLocked,
         ) {
-            Text(if (themeMode == WatchSettingsStore.THEME_JADE) "● Jade" else "◇ Jade")
+            Text(watchThemeOptionText(themeMode == WatchSettingsStore.THEME_JADE, WatchSettingsStore.THEME_JADE, currentLocale))
         }
 
         Button(
@@ -275,7 +264,7 @@ fun SettingsScreen(
             onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_CRIMSON) } },
             enabled = !actionLocked,
         ) {
-            Text(if (themeMode == WatchSettingsStore.THEME_CRIMSON) "● Crimson" else "◇ Crimson")
+            Text(watchThemeOptionText(themeMode == WatchSettingsStore.THEME_CRIMSON, WatchSettingsStore.THEME_CRIMSON, currentLocale))
         }
 
         Button(
@@ -283,7 +272,7 @@ fun SettingsScreen(
             onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_VOID) } },
             enabled = !actionLocked,
         ) {
-            Text(if (themeMode == WatchSettingsStore.THEME_VOID) "● Void" else "◇ Void")
+            Text(watchThemeOptionText(themeMode == WatchSettingsStore.THEME_VOID, WatchSettingsStore.THEME_VOID, currentLocale))
         }
 
         Button(
@@ -291,11 +280,11 @@ fun SettingsScreen(
             onClick = { runDebounced { WatchSettingsStore.setThemeMode(context, WatchSettingsStore.THEME_ASH) } },
             enabled = !actionLocked,
         ) {
-            Text(if (themeMode == WatchSettingsStore.THEME_ASH) "● Ash" else "◇ Ash")
+            Text(watchThemeOptionText(themeMode == WatchSettingsStore.THEME_ASH, WatchSettingsStore.THEME_ASH, currentLocale))
         }
 
         Text(
-            text = "Font:",
+            text = watchFontTitle(currentLocale),
             fontSize = 12.sp,
             color = Color.White,
             textAlign = TextAlign.Center,
@@ -306,7 +295,7 @@ fun SettingsScreen(
             onClick = { runDebounced { WatchSettingsStore.setFontMode(context, WatchSettingsStore.FONT_DEFAULT) } },
             enabled = !actionLocked,
         ) {
-            Text(if (fontMode == WatchSettingsStore.FONT_DEFAULT) "● Default" else "◇ Default")
+            Text(watchFontOptionText(fontMode == WatchSettingsStore.FONT_DEFAULT, WatchSettingsStore.FONT_DEFAULT, currentLocale))
         }
 
         Button(
@@ -314,7 +303,7 @@ fun SettingsScreen(
             onClick = { runDebounced { WatchSettingsStore.setFontMode(context, WatchSettingsStore.FONT_MONO) } },
             enabled = !actionLocked,
         ) {
-            Text(if (fontMode == WatchSettingsStore.FONT_MONO) "● Mono" else "◇ Mono")
+            Text(watchFontOptionText(fontMode == WatchSettingsStore.FONT_MONO, WatchSettingsStore.FONT_MONO, currentLocale))
         }
 
         Button(
@@ -322,7 +311,7 @@ fun SettingsScreen(
             onClick = { runDebounced { WatchSettingsStore.toggleBiometricIngest(context) } },
             enabled = !actionLocked,
         ) {
-            Text(if (biometricIngestEnabled) "Biometric: ON" else "Biometric: OFF")
+            Text(watchBiometricToggleText(biometricIngestEnabled, currentLocale))
         }
 
         Button(
@@ -330,12 +319,12 @@ fun SettingsScreen(
             onClick = onOpenPairing,
             enabled = !actionLocked,
         ) {
-            Text("Reopen Pairing QR")
+            Text(watchReopenPairingQrText(currentLocale))
         }
 
         if (healthEvents.isNotEmpty()) {
             Text(
-                text = "Health snapshot",
+                text = watchHealthSnapshotTitle(currentLocale),
                 fontSize = 10.sp,
                 color = Color(0xFFB0BEC5),
                 textAlign = TextAlign.Center,
@@ -347,11 +336,11 @@ fun SettingsScreen(
                     val clipboard = context.getSystemService(ClipboardManager::class.java)
                     val exported = DeviceBusRuntime.exportHealthSnapshot()
                     clipboard.setPrimaryClip(ClipData.newPlainText("health_snapshot", exported))
-                    Toast.makeText(context, "Snapshot copied", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, watchSnapshotCopiedText(currentLocale), Toast.LENGTH_SHORT).show()
                 },
                 enabled = !actionLocked,
             ) {
-                Text("Copy Snapshot")
+                Text(watchCopySnapshotText(currentLocale))
             }
 
             Button(
@@ -359,13 +348,13 @@ fun SettingsScreen(
                 onClick = { DeviceBusRuntime.clearHealthEvents() },
                 enabled = !actionLocked,
             ) {
-                Text("Clear Snapshot")
+                Text(watchClearSnapshotText(currentLocale))
             }
 
             val preview = healthEvents.take(6)
             for (event in preview) {
                 Text(
-                    text = formatHealthEvent(event),
+                    text = formatHealthEvent(event, currentLocale),
                     fontSize = 9.sp,
                     color = Color(0xFF90A4AE),
                     textAlign = TextAlign.Center,
@@ -377,7 +366,7 @@ fun SettingsScreen(
 
         if (showReconnectConfirm) {
             Text(
-                text = "Confirm reconnect?",
+                text = watchConfirmReconnectQuestion(currentLocale),
                 fontSize = 10.sp,
                 color = Color(0xFFFFCC80),
                 textAlign = TextAlign.Center,
@@ -390,14 +379,14 @@ fun SettingsScreen(
                 },
                 enabled = !actionLocked,
             ) {
-                Text("Confirm Reconnect")
+                Text(watchConfirmReconnectText(currentLocale))
             }
             Button(
                 modifier = wideButtonModifier,
                 onClick = { showReconnectConfirm = false },
                 enabled = !actionLocked,
             ) {
-                Text("Cancel")
+                Text(watchCancelText(currentLocale))
             }
         } else {
             Button(
@@ -405,7 +394,7 @@ fun SettingsScreen(
                 onClick = { showReconnectConfirm = true },
                 enabled = !actionLocked,
             ) {
-                Text("Reconnect")
+                Text(watchReconnectButtonText(currentLocale))
             }
         }
 
@@ -417,7 +406,7 @@ fun SettingsScreen(
             },
             enabled = stopDisabledReason == null && !actionLocked,
         ) {
-            Text("Stop Service")
+            Text(watchStopServiceText(currentLocale))
         }
 
         if (stopDisabledReason != null) {
@@ -437,12 +426,12 @@ fun SettingsScreen(
             },
             enabled = !actionLocked,
         ) {
-            Text("Start Service")
+            Text(watchStartServiceText(currentLocale))
         }
 
         if (showLogoutConfirm) {
             Text(
-                text = "Confirm log out?",
+                text = watchConfirmLogOutQuestion(currentLocale),
                 fontSize = 10.sp,
                 color = Color(0xFFFFCC80),
                 textAlign = TextAlign.Center,
@@ -454,19 +443,19 @@ fun SettingsScreen(
                     runDebounced {
                         DeviceBusService.stop(context)
                         busClient.clearCredentials()
-                        Toast.makeText(context, "Logged out", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, watchLoggedOutText(currentLocale), Toast.LENGTH_SHORT).show()
                     }
                 },
                 enabled = !actionLocked,
             ) {
-                Text("Confirm Log Out")
+                Text(watchConfirmLogOutText(currentLocale))
             }
             Button(
                 modifier = wideButtonModifier,
                 onClick = { showLogoutConfirm = false },
                 enabled = !actionLocked,
             ) {
-                Text("Cancel")
+                Text(watchCancelText(currentLocale))
             }
         } else {
             Button(
@@ -474,13 +463,13 @@ fun SettingsScreen(
                 onClick = { showLogoutConfirm = true },
                 enabled = !actionLocked,
             ) {
-                Text("Log Out")
+                Text(watchLogOutText(currentLocale))
             }
         }
 
         if (actionLocked) {
             Text(
-                text = "Control lock active...",
+                text = watchControlLockActiveText(currentLocale),
                 fontSize = 10.sp,
                 color = Color(0xFF90CAF9),
                 textAlign = TextAlign.Center,
@@ -488,14 +477,12 @@ fun SettingsScreen(
         }
 
         Button(modifier = wideButtonModifier, onClick = onBack) {
-            Text("Back")
+            Text(watchBackText(currentLocale))
         }
     }
 }
 
-private fun formatHealthEvent(event: HealthEvent): String {
-    val fmt = SimpleDateFormat("HH:mm:ss", Locale.US)
-    val at = fmt.format(Date(event.atMs))
-    return "$at ${event.category}: ${event.message}"
+private fun formatHealthEvent(event: HealthEvent, locale: Locale): String {
+    return formatWatchHealthEvent(event, locale)
 }
 

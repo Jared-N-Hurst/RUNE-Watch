@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -23,11 +24,13 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import java.util.Locale
 
 @Composable
 fun EmberScreen(
     connected: Boolean,
     emberState: String,
+    currentLocale: Locale,
     onOpenSettings: () -> Unit,
     onOpenBiometrics: () -> Unit,
     onOpenPairing: () -> Unit,
@@ -38,6 +41,9 @@ fun EmberScreen(
     val scope = rememberCoroutineScope()
     val notification by busClient.currentNotification.collectAsState()
     var radialMenuOpen by rememberSaveable { mutableStateOf(false) }
+    val connectedStatus = remember(connected, currentLocale) {
+        watchHomeConnectionStatus(connected, currentLocale)
+    }
 
     val themeAccent = androidx.wear.compose.material.MaterialTheme.colors.primary
     val emotionalColor = if (!connected) Color(0xFF7E8A98) else themeAccent
@@ -61,6 +67,7 @@ fun EmberScreen(
     if (notification != null) {
         NotificationRenderer(
             notification = notification!!,
+            currentLocale = currentLocale,
             onActionSelected = { action: NotificationAction ->
                 scope.launch {
                     if (notification!!.incidentId != null) {
@@ -125,7 +132,7 @@ fun EmberScreen(
                     if (radialMenuOpen) {
                         RadialActionButton(
                             icon = "✦",
-                            label = "Chat",
+                            label = watchHomeChatLabel(currentLocale),
                             offsetX = (-63).dp,
                             offsetY = (-20).dp,
                             onClick = {
@@ -135,7 +142,7 @@ fun EmberScreen(
                         )
                         RadialActionButton(
                             icon = "⚙",
-                            label = "Set",
+                            label = watchHomeSettingsLabel(currentLocale),
                             offsetX = 63.dp,
                             offsetY = (-20).dp,
                             onClick = {
@@ -145,7 +152,7 @@ fun EmberScreen(
                         )
                         RadialActionButton(
                             icon = "♥",
-                            label = "Bio",
+                            label = watchHomeBiometricsLabel(currentLocale),
                             offsetX = 39.dp,
                             offsetY = 54.dp,
                             onClick = {
@@ -156,7 +163,7 @@ fun EmberScreen(
                         )
                         RadialActionButton(
                             icon = "🎤",
-                            label = "Mic",
+                            label = watchHomeMicLabel(currentLocale),
                             offsetX = (-39).dp,
                             offsetY = 54.dp,
                             onClick = {
@@ -167,7 +174,7 @@ fun EmberScreen(
                         )
                         RadialActionButton(
                             icon = "⌁",
-                            label = "Pair",
+                            label = watchHomePairLabel(currentLocale),
                             offsetX = 0.dp,
                             offsetY = (-66).dp,
                             onClick = {
@@ -181,7 +188,7 @@ fun EmberScreen(
             }
 
             Text(
-                text = if (connected) "● Connected" else "○ Offline",
+                text = connectedStatus,
                 fontSize = 11.sp,
                 color = if (connected) Color(0xFF4CAF50) else Color(0xFF757575)
             )

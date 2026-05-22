@@ -27,6 +27,9 @@ fun EmberApp(busClient: DeviceBusClient) {
     val context = LocalContext.current
     val themeMode by WatchSettingsStore.themeModeFlow(context)
         .collectAsState(initial = WatchSettingsStore.THEME_RUNE_DARK)
+    val localePreference by WatchSettingsStore.localePreferenceFlow(context)
+        .collectAsState(initial = null)
+    val currentLocale = WatchSettingsStore.resolveLocale(localePreference)
 
     EmberWatchTheme(themeMode = themeMode) {
         val paired by busClient.paired.collectAsState()
@@ -63,16 +66,16 @@ fun EmberApp(busClient: DeviceBusClient) {
             voiceListening = true
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to Ember")
+                putExtra(RecognizerIntent.EXTRA_PROMPT, watchVoicePrompt(currentLocale))
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, currentLocale.toLanguageTag())
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             }
             runCatching {
                 speechLauncher.launch(intent)
             }.onFailure {
                 voiceListening = false
-                voiceDraftState = "Voice input is unavailable on this watch right now."
+                voiceDraftState = watchVoiceUnavailable(currentLocale)
             }
         }
 
@@ -100,6 +103,7 @@ fun EmberApp(busClient: DeviceBusClient) {
                 EmberScreen(
                     connected = connected,
                     emberState = emberState,
+                    currentLocale = currentLocale,
                     onOpenSettings = {
                         navController.navigate("settings")
                     },
@@ -124,6 +128,7 @@ fun EmberApp(busClient: DeviceBusClient) {
                 ChatScreen(
                     voiceDraft = voiceDraftState,
                     voiceListening = voiceListening,
+                    currentLocale = currentLocale,
                     onOpenVoiceCapture = ::launchVoiceCapture,
                     onSendVoiceDraft = ::sendVoiceDraft,
                     onClearVoiceDraft = {
@@ -161,6 +166,7 @@ fun EmberApp(busClient: DeviceBusClient) {
 
             composable("biometrics") {
                 BiometricsScreen(
+                    currentLocale = currentLocale,
                     onBack = { navController.popBackStack() },
                 )
             }

@@ -21,11 +21,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.Text
+import java.util.Locale
 
 @Composable
 fun ChatScreen(
     voiceDraft: String,
     voiceListening: Boolean,
+    currentLocale: Locale,
     onOpenVoiceCapture: () -> Unit,
     onSendVoiceDraft: () -> Unit,
     onClearVoiceDraft: () -> Unit,
@@ -42,14 +44,14 @@ fun ChatScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text = "Chat",
+            text = watchChatTitle(currentLocale),
             fontSize = 13.sp,
             color = Color.White,
             textAlign = TextAlign.Center,
         )
 
         Text(
-            text = "Voice relay to Ember",
+            text = watchChatSubtitle(currentLocale),
             fontSize = 10.sp,
             color = Color(0xFFB0BEC5),
             textAlign = TextAlign.Center,
@@ -67,9 +69,9 @@ fun ChatScreen(
         ) {
             Text(
                 text = when {
-                    voiceListening -> "Listening for your message..."
+                    voiceListening -> watchChatListeningText(currentLocale)
                     voiceReady -> voiceDraft
-                    else -> "Tap Mic, speak to Ember, then send the transcript."
+                    else -> watchChatInstructionText(currentLocale)
                 },
                 fontSize = 11.sp,
                 color = Color(0xFFCFD8DC),
@@ -87,7 +89,7 @@ fun ChatScreen(
                         .height(40.dp),
                 ) {
                     Text(
-                        text = if (voiceListening) "Mic..." else "Mic",
+                        text = watchChatMicButton(voiceListening, currentLocale),
                         fontSize = 10.sp,
                     )
                 }
@@ -100,7 +102,7 @@ fun ChatScreen(
                         .height(40.dp),
                 ) {
                     Text(
-                        text = "Send",
+                        text = watchChatSendButton(currentLocale),
                         fontSize = 10.sp,
                     )
                 }
@@ -111,7 +113,7 @@ fun ChatScreen(
                     onClick = onClearVoiceDraft,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Clear")
+                    Text(watchChatClearButton(currentLocale))
                 }
             }
         }
@@ -124,7 +126,7 @@ fun ChatScreen(
                 .fillMaxWidth(0.48f)
                 .height(40.dp),
         ) {
-            Text("Back")
+            Text(watchChatBackButton(currentLocale))
         }
     }
 }

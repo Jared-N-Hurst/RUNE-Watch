@@ -9,6 +9,7 @@ import android.os.VibratorManager
 import android.util.Log
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.rune.watch.settings.WatchSettingsStore
 import com.rune.watch.storage.emberPrefsDataStore
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -25,10 +26,17 @@ private const val TAG = "RUNE_DeviceBus"
 private val KEY_DEVICE_ID  = stringPreferencesKey("device_id")
 private val KEY_USER_ID    = stringPreferencesKey("user_id")
 private val KEY_AUTH_TOKEN = stringPreferencesKey("auth_token")
+private val KEY_LOCALE_PREFERENCE = stringPreferencesKey("locale_preference")
 
 private const val API_BASE_URL = "https://api.rune-systems.com"
 private const val INCIDENT_SCHEMA_VERSION = "incident-v1"
 private val INCIDENT_SUPPORTED_CLASSES = setOf("auth", "network", "runtime", "state", "capability", "custom")
+
+internal fun extractLocalePreferenceSyncPayload(payloadRaw: Any?): String? {
+    if (payloadRaw !is JSONObject) return null
+    if (payloadRaw.isNull("localePreference")) return null
+    return payloadRaw.optString("localePreference").trim().ifBlank { null }?.lowercase()
+}
 
 data class PairingSession(
     val deviceId: String,
@@ -88,6 +96,9 @@ class DeviceBusClient(private val context: Context) {
 
     private val _userIdState = MutableStateFlow("")
     val userIdState: StateFlow<String> = _userIdState.asStateFlow()
+
+    private val _localePreferenceState = MutableStateFlow<String?>(null)
+    val localePreferenceState: StateFlow<String?> = _localePreferenceState.asStateFlow()
 
     private val _pairingSession = MutableStateFlow<PairingSession?>(null)
     val pairingSession: StateFlow<PairingSession?> = _pairingSession.asStateFlow()
@@ -489,13 +500,18 @@ class DeviceBusClient(private val context: Context) {
         val fromDevice = command.optString("fromDevice")
 
         when (intent) {
+            "watch_locale_preference_sync" -> {
+                scope.launch {
+                    WatchSettingsStore.setLocalePreference(context, extractLocalePreferenceSyncPayload(payloadRaw))
+                }
+            }
             "haptic_ping" -> {
                 triggerHaptic(longArrayOf(0L, 80L, 40L, 90L))
                 _currentNotification.value = ParsedNotification(
                     id = command.optString("commandId").ifBlank { "haptic-${System.currentTimeMillis()}" },
                     type = "status",
-                    title = payload?.optString("title").orEmpty().ifBlank { "Phone Ping" },
-                    body = payload?.optString("body").orEmpty().ifBlank { "Haptic check from linked phone." },
+                    title = payload?.optString("title").orEmpty().ifBlank { watchPhonePingTitle(_localePreferenceState.value) },
+                    body = payload?.optString("body").orEmpty().ifBlank { watchPhonePingBody(_localePreferenceState.value) },
                     actions = emptyList(),
                 )
             }
@@ -515,9 +531,9 @@ class DeviceBusClient(private val context: Context) {
                     id = command.optString("commandId").ifBlank { "alert-${System.currentTimeMillis()}" },
                     type = "alert",
                     title = payload?.optString("title").orEmpty().ifBlank {
-                        if (intent == "process_completion") "Process Complete" else "Ember Alert"
+                        if (intent == "process_completion") watchProcessCompleteTitle(_localePreferenceState.value) else watchEmberAlertTitle(_localePreferenceState.value)
                     },
-                    body = payload?.optString("body").orEmpty().ifBlank { "A linked surface sent an update." },
+                    body = payload?.optString("body").orEmpty().ifBlank { watchLinkedSurfaceUpdateBody(_localePreferenceState.value) },
                     actions = emptyList(),
                 )
             }
@@ -536,21 +552,17 @@ class DeviceBusClient(private val context: Context) {
                     return
                 }
 
-                val severityLabel = when (incidentSeverity) {
-                    "critical" -> "Critical"
-                    "warning" -> "Warning"
-                    else -> "Info"
-                }
+                val severityLabel = watchIncidentSeverityLabel(incidentSeverity, _localePreferenceState.value)
 
                 triggerHaptic(longArrayOf(0L, 70L, 30L, 90L, 30L, 120L))
                 _currentNotification.value = ParsedNotification(
                     id = command.optString("commandId").ifBlank { "incident-${System.currentTimeMillis()}" },
                     type = "alert",
-                    title = payload?.optString("title").orEmpty().ifBlank { "Incident $severityLabel" },
+                    title = payload?.optString("title").orEmpty().ifBlank { watchIncidentTitle(incidentSeverity, _localePreferenceState.value) },
                     body = incidentSummary,
                     actions = listOf(
-                        NotificationAction(id = "ack", label = "Acknowledge", actionType = "primary"),
-                        NotificationAction(id = "dismiss", label = "Dismiss", actionType = "secondary"),
+                        NotificationAction(id = "ack", label = watchNotificationAcknowledgeText(_localePreferenceState.value), actionType = "primary"),
+                        NotificationAction(id = "dismiss", label = watchNotificationDismissText(_localePreferenceState.value), actionType = "secondary"),
                     ),
                     incidentId = incidentId,
                     incidentClass = incidentClass,
@@ -576,7 +588,7 @@ class DeviceBusClient(private val context: Context) {
                 }
 
                 if (messageText.isBlank()) {
-                    messageText = "New message from linked surface."
+                    messageText = watchLinkedSurfaceMessageText(_localePreferenceState.value)
                 }
 
                 triggerHaptic(longArrayOf(0L, 50L, 30L, 70L, 30L, 70L))
@@ -702,6 +714,7 @@ class DeviceBusClient(private val context: Context) {
             deviceId  = prefs[KEY_DEVICE_ID]  ?: generateAndSaveDeviceId()
             userId    = prefs[KEY_USER_ID]    ?: ""
             authToken = prefs[KEY_AUTH_TOKEN] ?: ""
+            _localePreferenceState.value = prefs[KEY_LOCALE_PREFERENCE]?.trim()?.ifBlank { null }
             _deviceIdState.value = deviceId
             _userIdState.value = userId
             _paired.value = userId.isNotBlank() && authToken.isNotBlank()
@@ -719,14 +732,21 @@ class DeviceBusClient(private val context: Context) {
     }
 
     /** Called from settings / auth flow to persist credentials. */
-    suspend fun saveCredentials(userId: String, authToken: String) {
+    suspend fun saveCredentials(userId: String, authToken: String, localePreference: String? = null) {
         this.userId    = userId
         this.authToken = authToken
         context.emberPrefsDataStore.edit {
             it[KEY_USER_ID]    = userId
             it[KEY_AUTH_TOKEN] = authToken
+            val normalizedLocale = localePreference?.trim()?.lowercase().orEmpty()
+            if (normalizedLocale.isBlank()) {
+                it.remove(KEY_LOCALE_PREFERENCE)
+            } else {
+                it[KEY_LOCALE_PREFERENCE] = normalizedLocale
+            }
         }
         _userIdState.value = userId
+        _localePreferenceState.value = localePreference?.trim()?.ifBlank { null }?.lowercase()
         _paired.value = true
         _pairingSession.value = null
 
@@ -743,9 +763,11 @@ class DeviceBusClient(private val context: Context) {
         context.emberPrefsDataStore.edit {
             it.remove(KEY_USER_ID)
             it.remove(KEY_AUTH_TOKEN)
+            it.remove(KEY_LOCALE_PREFERENCE)
         }
         _connected.value = false
         _userIdState.value = ""
+        _localePreferenceState.value = null
         _paired.value = false
         _pairingSession.value = null
         _currentNotification.value = null
@@ -822,10 +844,11 @@ class DeviceBusClient(private val context: Context) {
 
                     val pairedUserId = data.optString("userId")
                     val watchAuthToken = data.optString("watchAuthToken")
+                    val localePreference = data.optString("localePreference").trim().ifBlank { null }
                     Log.i(TAG, "pollPairingStatus: paired=true userId=$pairedUserId hasToken=${watchAuthToken.isNotBlank()}")
                     if (pairedUserId.isBlank() || watchAuthToken.isBlank()) return@use false
 
-                    saveCredentials(pairedUserId, watchAuthToken)
+                    saveCredentials(pairedUserId, watchAuthToken, localePreference)
                     true
                 }
             }.onFailure { e ->
