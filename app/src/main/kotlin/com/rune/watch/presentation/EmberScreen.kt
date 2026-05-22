@@ -63,12 +63,20 @@ fun EmberScreen(
             notification = notification!!,
             onActionSelected = { action: NotificationAction ->
                 scope.launch {
-                    busClient.respondToNotificationAction(notification!!.id, action.id)
+                    if (notification!!.incidentId != null) {
+                        busClient.respondToIncidentAction(notification!!, action.id)
+                    } else {
+                        busClient.respondToNotificationAction(notification!!.id, action.id)
+                    }
                 }
             },
             onDismiss = {
                 scope.launch {
-                    busClient.respondToNotificationAction(notification!!.id, "dismiss")
+                    if (notification!!.incidentId != null) {
+                        busClient.respondToIncidentAction(notification!!, "dismiss")
+                    } else {
+                        busClient.respondToNotificationAction(notification!!.id, "dismiss")
+                    }
                 }
             }
         )

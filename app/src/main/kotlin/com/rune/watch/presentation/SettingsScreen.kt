@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +35,7 @@ import com.rune.watch.bus.DeviceBusClient
 import com.rune.watch.bus.DeviceBusRuntime
 import com.rune.watch.bus.DeviceBusRuntime.HealthEvent
 import com.rune.watch.bus.DeviceBusService
+import com.rune.watch.bus.WatchPresenceDiagnosticsSnapshot
 import com.rune.watch.settings.WatchSettingsStore
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -71,6 +73,28 @@ fun SettingsScreen(
     var actionLocked by remember { mutableStateOf(false) }
     var showReconnectConfirm by remember { mutableStateOf(false) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
+    var presenceSnapshot by remember { mutableStateOf<WatchPresenceDiagnosticsSnapshot?>(null) }
+    var presenceLoading by remember { mutableStateOf(false) }
+    var presenceError by remember { mutableStateOf<String?>(null) }
+
+    fun refreshPresenceSnapshot() {
+        scope.launch {
+            presenceLoading = true
+            presenceError = null
+            val snapshot = busClient.fetchPresenceDiagnosticsSnapshot()
+            if (snapshot == null) {
+                presenceError = "Presence diagnostics unavailable"
+            }
+            presenceSnapshot = snapshot
+            presenceLoading = false
+        }
+    }
+
+    LaunchedEffect(userId, deviceId) {
+        if (userId.isNotBlank() && deviceId.isNotBlank()) {
+            refreshPresenceSnapshot()
+        }
+    }
 
     val reconnectText = lastReconnectAttemptMs?.let {
         val fmt = SimpleDateFormat("HH:mm:ss", Locale.US)
@@ -175,6 +199,52 @@ fun SettingsScreen(
             color = Color(0xFFB0BEC5),
             textAlign = TextAlign.Center,
         )
+
+        Text(
+            text = "Presence diagnostics",
+            fontSize = 10.sp,
+            color = Color(0xFFB0BEC5),
+            textAlign = TextAlign.Center,
+        )
+
+        Button(
+            modifier = wideButtonModifier,
+            onClick = { refreshPresenceSnapshot() },
+            enabled = !actionLocked && !presenceLoading,
+        ) {
+            Text(if (presenceLoading) "Refreshing Presence..." else "Refresh Presence")
+        }
+
+        if (presenceSnapshot != null) {
+            val snapshot = presenceSnapshot!!
+            Text(
+                text = "Stale: ${snapshot.staleCause}",
+                fontSize = 10.sp,
+                color = Color(0xFFB0BEC5),
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = "Relay: ${if (snapshot.relayHealthy) "healthy" else "unhealthy"}",
+                fontSize = 10.sp,
+                color = if (snapshot.relayHealthy) Color(0xFF4CAF50) else Color(0xFFD28B6A),
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = "Heartbeat: ${snapshot.heartbeatPath} (${snapshot.lastSeenLabel})",
+                fontSize = 10.sp,
+                color = Color(0xFFB0BEC5),
+                textAlign = TextAlign.Center,
+            )
+        }
+
+        if (presenceError != null) {
+            Text(
+                text = presenceError ?: "Presence diagnostics unavailable",
+                fontSize = 10.sp,
+                color = Color(0xFFFFB74D),
+                textAlign = TextAlign.Center,
+            )
+        }
 
         Button(
             modifier = wideButtonModifier,

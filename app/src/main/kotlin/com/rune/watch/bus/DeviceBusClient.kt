@@ -27,12 +27,22 @@ private val KEY_USER_ID    = stringPreferencesKey("user_id")
 private val KEY_AUTH_TOKEN = stringPreferencesKey("auth_token")
 
 private const val API_BASE_URL = "https://api.rune-systems.com"
+private const val INCIDENT_SCHEMA_VERSION = "incident-v1"
+private val INCIDENT_SUPPORTED_CLASSES = setOf("auth", "network", "runtime", "state", "capability", "custom")
 
 data class PairingSession(
     val deviceId: String,
     val pairingCode: String,
     val timestamp: Long,
     val qrPayload: String,
+)
+
+data class WatchPresenceDiagnosticsSnapshot(
+    val staleCause: String,
+    val relayHealthy: Boolean,
+    val heartbeatPath: String,
+    val lastSeenLabel: String,
+    val lastRelayReceiptAtMs: Long?,
 )
 
 /**
@@ -70,6 +80,9 @@ class DeviceBusClient(private val context: Context) {
     private val _paired = MutableStateFlow(false)
     val paired: StateFlow<Boolean> = _paired.asStateFlow()
 
+    private val _adaptiveFallbackProfile = MutableStateFlow<String?>(null)
+    val adaptiveFallbackProfile: StateFlow<String?> = _adaptiveFallbackProfile.asStateFlow()
+
     private val _deviceIdState = MutableStateFlow("")
     val deviceIdState: StateFlow<String> = _deviceIdState.asStateFlow()
 
@@ -87,6 +100,49 @@ class DeviceBusClient(private val context: Context) {
     private var deviceId: String = ""
     private var userId: String = ""
     private var authToken: String = ""
+    private val lifecycleDiagnostics = WatchElLifecycleDiagnosticsEmitter()
+
+    private fun normalizeSourceSurface(value: String): String {
+        return when (value.trim().lowercase()) {
+            "desktop", "laptop", "pc" -> "desktop"
+            "mobile", "phone", "android", "ios" -> "mobile"
+            "watch", "wearos", "wearable" -> "watch"
+            "web", "browser" -> "web"
+            else -> ""
+        }
+    }
+
+    private fun normalizeThreadId(value: String?): String? {
+        val normalized = value?.trim().orEmpty()
+        return normalized.ifEmpty { null }?.take(128)
+    }
+
+    private fun deriveThreadId(payload: JSONObject): String? {
+        return normalizeThreadId(payload.optString("threadId"))
+            ?: normalizeThreadId(payload.optString("conversationId"))
+            ?: normalizeThreadId(payload.optString("groupId"))
+    }
+
+    private fun defaultSourceLabel(surface: String): String {
+        return when (surface) {
+            "desktop" -> "Desktop"
+            "mobile" -> "Phone"
+            "watch" -> "Watch"
+            "web" -> "Web"
+            else -> "Linked Surface"
+        }
+    }
+
+    private fun relayStatusCopy(status: String): String {
+        return when (status) {
+            "sending" -> "Relay sending"
+            "queued" -> "Relay queued"
+            "delivered" -> "Relay delivered"
+            "seen" -> "Relay seen"
+            "responded" -> "Relay responded"
+            else -> "Relay update"
+        }
+    }
 
     init {
         scope.launch { loadCredentials() }
@@ -176,14 +232,112 @@ class DeviceBusClient(private val context: Context) {
         }
     }
 
+    suspend fun respondToIncidentAction(notification: ParsedNotification, actionId: String): Boolean {
+        _currentNotification.value = null
+
+        val incidentId = notification.incidentId?.trim().orEmpty()
+        if (incidentId.isBlank()) {
+            return respondToNotificationAction(notification.id, actionId)
+        }
+
+        val incidentClass = notification.incidentClass?.trim()?.lowercase().orEmpty()
+        if (incidentClass.isBlank() || !INCIDENT_SUPPORTED_CLASSES.contains(incidentClass)) {
+            Log.w(TAG, "respondToIncidentAction: ignoring unsupported incident class '$incidentClass'")
+            return false
+        }
+
+        val acked = actionId != "dismiss"
+        val posted = postIncidentAckSignal(
+            incidentId = incidentId,
+            acked = acked,
+            tenantId = notification.incidentTenantId,
+        )
+
+        if (!posted) {
+            return false
+        }
+
+        return if (acked) {
+            true
+        } else {
+            respondToNotificationAction(notification.id, actionId)
+        }
+    }
+
+    suspend fun fetchPresenceDiagnosticsSnapshot(): WatchPresenceDiagnosticsSnapshot? {
+        if (userId.isBlank() || authToken.isBlank() || deviceId.isBlank()) return null
+
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val url = "$API_BASE_URL/api/device/presence-diagnostics?userId=$userId&limit=200"
+                val req = Request.Builder()
+                    .url(url)
+                    .addHeader("Authorization", "Bearer $authToken")
+                    .get()
+                    .build()
+
+                http.newCall(req).execute().use { res ->
+                    if (!res.isSuccessful) return@use null
+                    val raw = res.body?.string().orEmpty()
+                    val root = JSONObject(raw)
+                    val data = root.optJSONObject("data") ?: return@use null
+                    val devices = data.optJSONArray("devices") ?: return@use null
+
+                    var row: JSONObject? = null
+                    for (i in 0 until devices.length()) {
+                        val candidate = devices.optJSONObject(i) ?: continue
+                        if (candidate.optString("deviceId").trim() == deviceId) {
+                            row = candidate
+                            break
+                        }
+                    }
+                    if (row == null) {
+                        for (i in 0 until devices.length()) {
+                            val candidate = devices.optJSONObject(i) ?: continue
+                            if (candidate.optString("platform").trim() == "watch") {
+                                row = candidate
+                                break
+                            }
+                        }
+                    }
+                    if (row == null) return@use null
+
+                    WatchPresenceDiagnosticsSnapshot(
+                        staleCause = row.optString("staleCause").ifBlank { "unknown" },
+                        relayHealthy = row.optBoolean("relayHealthy", false),
+                        heartbeatPath = row.optString("heartbeatPath").ifBlank { "unknown" },
+                        lastSeenLabel = row.optString("lastSeenLabel").ifBlank { "unknown" },
+                        lastRelayReceiptAtMs = if (row.has("lastRelayReceiptAtMs") && !row.isNull("lastRelayReceiptAtMs")) {
+                            row.optLong("lastRelayReceiptAtMs")
+                        } else {
+                            null
+                        },
+                    )
+                }
+            }.getOrNull()
+        }
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private fun startReconnectLoop() {
         reconnectJob?.cancel()
         reconnectJob = scope.launch {
             var delaySecs = 2L
+            var attemptedOnce = false
             while (isActive) {
                 if (authToken.isNotBlank() && userId.isNotBlank() && deviceId.isNotBlank()) {
+                    if (attemptedOnce) {
+                        runCatching {
+                            lifecycleDiagnostics.emit(
+                                state = "reconnecting",
+                                deviceId = deviceId,
+                                userId = userId,
+                                authToken = authToken,
+                            )
+                        }
+                    }
+                    attemptedOnce = true
                     registerDevice()
                     openWebSocket()
                     // openWebSocket blocks until the socket closes/errors
@@ -233,6 +387,16 @@ class DeviceBusClient(private val context: Context) {
             override fun onOpen(ws: WebSocket, response: Response) {
                 Log.i(TAG, "openWebSocket: connected")
                 _connected.value = true
+                scope.launch {
+                    runCatching {
+                        lifecycleDiagnostics.emit(
+                            state = "connected",
+                            deviceId = deviceId,
+                            userId = userId,
+                            authToken = authToken,
+                        )
+                    }
+                }
                 startHeartbeat()
             }
 
@@ -247,6 +411,16 @@ class DeviceBusClient(private val context: Context) {
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 _connected.value = false
                 stopHeartbeat()
+                scope.launch {
+                    runCatching {
+                        lifecycleDiagnostics.emit(
+                            state = "closed",
+                            deviceId = deviceId,
+                            userId = userId,
+                            authToken = authToken,
+                        )
+                    }
+                }
                 if (cont.isActive) cont.resume(Unit) { _, _, _ -> }
             }
 
@@ -258,6 +432,16 @@ class DeviceBusClient(private val context: Context) {
                 )
                 _connected.value = false
                 stopHeartbeat()
+                scope.launch {
+                    runCatching {
+                        lifecycleDiagnostics.emit(
+                            state = "error",
+                            deviceId = deviceId,
+                            userId = userId,
+                            authToken = authToken,
+                        )
+                    }
+                }
                 if (cont.isActive) cont.resume(Unit) { _, _, _ -> }
             }
         })
@@ -292,6 +476,9 @@ class DeviceBusClient(private val context: Context) {
         }
         if (parsed.notification != null) {
             _currentNotification.value = parsed.notification
+        }
+        if (parsed.adaptiveFallbackProfile != null) {
+            _adaptiveFallbackProfile.value = parsed.adaptiveFallbackProfile
         }
     }
 
@@ -334,15 +521,56 @@ class DeviceBusClient(private val context: Context) {
                     actions = emptyList(),
                 )
             }
+            "incident_notify" -> {
+                val incidentPayload = payload?.optJSONObject("incident")
+                val incidentId = incidentPayload?.optString("incidentId").orEmpty().trim()
+                val incidentClass = incidentPayload?.optString("class").orEmpty().trim().lowercase()
+                val incidentSeverity = incidentPayload?.optString("severity").orEmpty().trim().lowercase()
+                val incidentSummary = incidentPayload?.optString("summary")
+                    .orEmpty()
+                    .trim()
+                    .ifBlank { payload?.optString("body").orEmpty().trim() }
+
+                if (incidentId.isBlank() || incidentSummary.isBlank() || !INCIDENT_SUPPORTED_CLASSES.contains(incidentClass)) {
+                    Log.w(TAG, "incident_notify: ignored malformed or unsupported incident payload")
+                    return
+                }
+
+                val severityLabel = when (incidentSeverity) {
+                    "critical" -> "Critical"
+                    "warning" -> "Warning"
+                    else -> "Info"
+                }
+
+                triggerHaptic(longArrayOf(0L, 70L, 30L, 90L, 30L, 120L))
+                _currentNotification.value = ParsedNotification(
+                    id = command.optString("commandId").ifBlank { "incident-${System.currentTimeMillis()}" },
+                    type = "alert",
+                    title = payload?.optString("title").orEmpty().ifBlank { "Incident $severityLabel" },
+                    body = incidentSummary,
+                    actions = listOf(
+                        NotificationAction(id = "ack", label = "Acknowledge", actionType = "primary"),
+                        NotificationAction(id = "dismiss", label = "Dismiss", actionType = "secondary"),
+                    ),
+                    incidentId = incidentId,
+                    incidentClass = incidentClass,
+                    incidentSeverity = incidentSeverity.ifBlank { "warning" },
+                    incidentTenantId = incidentPayload?.optString("tenantId")?.trim()?.ifBlank { null },
+                )
+            }
             "relay_message" -> {
                 var messageText = ""
                 var sourceLabel = ""
+                var sourceSurface = ""
                 var clientMessageId = ""
+                var threadId: String? = null
 
                 if (payloadRaw is JSONObject) {
                     messageText = payloadRaw.optString("text").orEmpty().trim()
                     sourceLabel = payloadRaw.optString("sourceLabel").orEmpty().trim()
+                    sourceSurface = normalizeSourceSurface(payloadRaw.optString("sourceSurface").orEmpty())
                     clientMessageId = payloadRaw.optString("clientMessageId").orEmpty().trim()
+                    threadId = deriveThreadId(payloadRaw)
                 } else if (payloadRaw is String) {
                     messageText = payloadRaw.trim()
                 }
@@ -355,9 +583,10 @@ class DeviceBusClient(private val context: Context) {
                 _currentNotification.value = ParsedNotification(
                     id = command.optString("commandId").ifBlank { "relay-${System.currentTimeMillis()}" },
                     type = "prompt",
-                    title = sourceLabel.ifBlank { "Linked Surface" },
+                    title = sourceLabel.ifBlank { defaultSourceLabel(sourceSurface) },
                     body = messageText,
                     actions = emptyList(),
+                    threadId = threadId,
                 )
 
                 if (fromDevice.isNotBlank() && clientMessageId.isNotBlank()) {
@@ -367,13 +596,39 @@ class DeviceBusClient(private val context: Context) {
                             intent = "relay_receipt",
                             payload = JSONObject().apply {
                                 put("clientMessageId", clientMessageId)
-                                put("status", "seen")
+                                put("status", normalizeRelayStatus("seen", fallback = "seen"))
                                 put("byDevice", deviceId)
                                 put("respondedFromLabel", "Watch")
                                 put("respondedFromSurface", "watch")
                             },
                         )
                     }
+                }
+            }
+            "relay_receipt" -> {
+                if (payloadRaw is JSONObject) {
+                    val status = applyRelayReceiptStatus(
+                        current = null,
+                        receipt = payloadRaw.optString("status").orEmpty(),
+                    )
+                    val threadId = deriveThreadId(payloadRaw)
+                    val sourceSurface = normalizeSourceSurface(
+                        payloadRaw.optString("respondedFromSurface")
+                            .ifBlank { payloadRaw.optString("sourceSurface") }
+                            .orEmpty(),
+                    )
+                    val sourceLabel = payloadRaw.optString("respondedFromLabel")
+                        .ifBlank { payloadRaw.optString("sourceLabel") }
+                        .trim()
+
+                    _currentNotification.value = ParsedNotification(
+                        id = command.optString("commandId").ifBlank { "relay-receipt-${System.currentTimeMillis()}" },
+                        type = "status",
+                        title = sourceLabel.ifBlank { defaultSourceLabel(sourceSurface) },
+                        body = relayStatusCopy(status),
+                        actions = emptyList(),
+                        threadId = threadId,
+                    )
                 }
             }
             "presence_probe" -> {
@@ -595,6 +850,36 @@ class DeviceBusClient(private val context: Context) {
                 .build()
 
             http.newCall(req).execute().use { }
+        }
+    }
+
+    private suspend fun postIncidentAckSignal(
+        incidentId: String,
+        acked: Boolean,
+        tenantId: String? = null,
+    ): Boolean {
+        if (userId.isBlank() || authToken.isBlank() || deviceId.isBlank()) return false
+
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val body = JSONObject().apply {
+                    put("incidentSchemaVersion", INCIDENT_SCHEMA_VERSION)
+                    put("incidentId", incidentId)
+                    put("deviceId", deviceId)
+                    put("acked", acked)
+                    put("ackedAt", java.time.Instant.now().toString())
+                    put("confidence", if (acked) 0.9 else 0.2)
+                    if (!tenantId.isNullOrBlank()) put("tenantId", tenantId)
+                }.toString()
+
+                val req = Request.Builder()
+                    .url("$API_BASE_URL/api/diagnostics/incidents/ack?userId=$userId")
+                    .addHeader("Authorization", "Bearer $authToken")
+                    .post(body.toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                http.newCall(req).execute().use { it.isSuccessful }
+            }.getOrDefault(false)
         }
     }
 

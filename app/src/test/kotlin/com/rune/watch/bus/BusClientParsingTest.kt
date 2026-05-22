@@ -41,6 +41,22 @@ class BusClientParsingTest {
         assertNull(parsed.ringUpdate)
     }
 
+      @Test
+      fun parseDeviceBusMessage_readsAdaptiveFallbackProfileCommand() {
+        val parsed = parseDeviceBusMessage(
+          """
+          {
+            "type":"command",
+            "intent":"adaptive_fallback_profile",
+            "payload":{"strategy":"conservative","cooldownSeconds":90}
+          }
+          """.trimIndent()
+        )
+
+        assertNotNull(parsed.adaptiveFallbackProfile)
+        assertEquals(true, parsed.adaptiveFallbackProfile!!.contains("conservative"))
+      }
+
     @Test
     fun parseDeviceBusMessage_returnsEmptyForInvalidJson() {
         val parsed = parseDeviceBusMessage("not-json")
@@ -73,7 +89,76 @@ class BusClientParsingTest {
         assertEquals("Message from Phone", parsed.notification?.title)
         assertEquals("Hello from mobile", parsed.notification?.body)
         assertEquals("Phone", parsed.notification?.sourceLabel)
-        assertEquals("phone", parsed.notification?.sourceSurface)
+        assertEquals("mobile", parsed.notification?.sourceSurface)
+    }
+
+    @Test
+    fun parseDeviceBusMessage_normalizesNotificationSourceSurfaceAliases() {
+        val parsed = parseDeviceBusMessage(
+            """
+            {
+              "type":"notification",
+              "data":{
+                "id":"notif-1a",
+                "type":"relay",
+                "title":"Message from desktop",
+                "body":"Hello from laptop",
+                "sourceLabel":"Desktop",
+                "sourceSurface":"laptop",
+                "actions":[]
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertNotNull(parsed.notification)
+        assertEquals("desktop", parsed.notification?.sourceSurface)
+    }
+
+    @Test
+    fun parseDeviceBusMessage_prefersCanonicalThreadIdOverLegacyAliases() {
+        val parsed = parseDeviceBusMessage(
+            """
+            {
+              "type":"notification",
+              "data":{
+                "id":"notif-thread-1",
+                "type":"relay",
+                "title":"Message from desktop",
+                "body":"Canonical thread should win",
+                "threadId":"canonical-thread-7",
+                "conversationId":"legacy-conversation-8",
+                "groupId":"group-thread-9",
+                "actions":[]
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertNotNull(parsed.notification)
+        assertEquals("canonical-thread-7", parsed.notification?.threadId)
+    }
+
+    @Test
+    fun parseDeviceBusMessage_usesLegacyConversationIdWhenThreadIdMissing() {
+        val parsed = parseDeviceBusMessage(
+            """
+            {
+              "type":"notification",
+              "data":{
+                "id":"notif-thread-2",
+                "type":"relay",
+                "title":"Message from phone",
+                "body":"Legacy alias fallback",
+                "conversationId":"legacy-conversation-11",
+                "actions":[]
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertNotNull(parsed.notification)
+        assertEquals("legacy-conversation-11", parsed.notification?.threadId)
     }
 
     @Test
@@ -126,6 +211,155 @@ class BusClientParsingTest {
         assertEquals("Desktop", parsed.notification?.sourceLabel)
         assertEquals("desktop", parsed.notification?.sourceSurface)
         assertEquals("Acknowledge", parsed.notification?.actions?.get(0)?.label)
+    }
+
+    @Test
+    fun parseDeviceBusMessage_acceptsIncidentNotificationForSupportedClass() {
+        val parsed = parseDeviceBusMessage(
+            """
+            {
+              "type":"notification",
+              "data":{
+                "id":"notif-incident-1",
+                "type":"alert",
+                "title":"Incident Warning",
+                "body":"Token refresh failed repeatedly.",
+                "incident":{
+                  "incidentId":"inc-auth-1",
+                  "class":"auth",
+                  "severity":"critical",
+                  "tenantId":"global"
+                },
+                "actions":[{"id":"ack","label":"Acknowledge","actionType":"primary"}]
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertNotNull(parsed.notification)
+        assertEquals("inc-auth-1", parsed.notification?.incidentId)
+        assertEquals("auth", parsed.notification?.incidentClass)
+        assertEquals("critical", parsed.notification?.incidentSeverity)
+        assertEquals("global", parsed.notification?.incidentTenantId)
+    }
+
+    @Test
+    fun parseDeviceBusMessage_rejectsIncidentNotificationForUnsupportedClass() {
+        val parsed = parseDeviceBusMessage(
+            """
+            {
+              "type":"notification",
+              "data":{
+                "id":"notif-incident-2",
+                "type":"alert",
+                "title":"Incident Unsupported",
+                "body":"Unsupported incident class should be ignored.",
+                "incident":{
+                  "incidentId":"inc-unsupported-1",
+                  "class":"database",
+                  "severity":"warning"
+                }
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertNull(parsed.notification)
+    }
+
+    @Test
+    fun parseEmberEventEnvelopeV1_accepts_valid_el1_event() {
+        val parsed = parseEmberEventEnvelopeV1(
+            """
+            {
+              "eventSchemaVersion": "el-1.v1",
+              "eventId": "evt-1",
+              "emberId": "ember-1",
+              "userId": "user-1",
+              "eventType": "UserMessage",
+              "provenance": "user",
+              "surface": "watch",
+              "sequence": 7,
+              "causalParentIds": ["evt-0"],
+              "occurredAt": "2026-05-17T00:00:00Z",
+              "recordedAt": "2026-05-17T00:00:01Z",
+              "payload": { "text": "hello" }
+            }
+            """.trimIndent()
+        )
+
+        assertNotNull(parsed)
+        assertEquals("el-1.v1", parsed?.eventSchemaVersion)
+        assertEquals("UserMessage", parsed?.eventType)
+        assertEquals(listOf("evt-0"), parsed?.causalParentIds)
+    }
+
+    @Test
+    fun parseEmberEventEnvelopeV1_rejects_invalid_type_or_surface() {
+        val invalidType = parseEmberEventEnvelopeV1(
+            """
+            {
+              "eventSchemaVersion": "el-1.v1",
+              "eventId": "evt-1",
+              "emberId": "ember-1",
+              "userId": "user-1",
+              "eventType": "NotARealType",
+              "provenance": "user",
+              "surface": "watch",
+              "sequence": 7,
+              "occurredAt": "2026-05-17T00:00:00Z",
+              "recordedAt": "2026-05-17T00:00:01Z",
+              "payload": {}
+            }
+            """.trimIndent()
+        )
+        assertNull(invalidType)
+
+        val invalidSurface = parseEmberEventEnvelopeV1(
+            """
+            {
+              "eventSchemaVersion": "el-1.v1",
+              "eventId": "evt-1",
+              "emberId": "ember-1",
+              "userId": "user-1",
+              "eventType": "UserMessage",
+              "provenance": "user",
+              "surface": "browser",
+              "sequence": 7,
+              "occurredAt": "2026-05-17T00:00:00Z",
+              "recordedAt": "2026-05-17T00:00:01Z",
+              "payload": {}
+            }
+            """.trimIndent()
+        )
+        assertNull(invalidSurface)
+    }
+
+    @Test
+    fun parseEmberEventEnvelopeV1_rejects_unsupported_incident_class() {
+        val parsed = parseEmberEventEnvelopeV1(
+            """
+            {
+              "eventSchemaVersion": "el-1.v1",
+              "eventId": "evt-incident-1",
+              "emberId": "ember-1",
+              "userId": "user-1",
+              "eventType": "GhostIntervention",
+              "provenance": "ghost",
+              "surface": "watch",
+              "sequence": 11,
+              "occurredAt": "2026-05-17T00:00:00Z",
+              "recordedAt": "2026-05-17T00:00:01Z",
+              "payload": {
+                "incident": {
+                  "class": "database"
+                }
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertNull(parsed)
     }
 
     @Test

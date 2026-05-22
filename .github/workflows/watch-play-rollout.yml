@@ -74,8 +74,23 @@ jobs:
           path: ${{ steps.output.outputs.apk }}
           if-no-files-found: error
 
+      - name: Validate Play publish secrets
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_play == true }}
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          WATCH_PLAY_PACKAGE_NAME: ${{ secrets.WATCH_PLAY_PACKAGE_NAME }}
+        run: |
+          if [ -z "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "Missing required secret: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"
+            exit 1
+          fi
+          if [ -z "$WATCH_PLAY_PACKAGE_NAME" ]; then
+            echo "Missing required secret: WATCH_PLAY_PACKAGE_NAME"
+            exit 1
+          fi
+
       - name: Upload watch APK to Google Play internal track
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_play == true && secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' && secrets.WATCH_PLAY_PACKAGE_NAME != '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_play == true }}
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
