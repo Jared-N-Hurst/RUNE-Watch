@@ -214,6 +214,59 @@ class BusClientParsingTest {
     }
 
     @Test
+    fun parseDeviceBusMessage_readsRelayMessageAsChatEvent() {
+        val parsed = parseDeviceBusMessage(
+            """
+            {
+              "type":"command",
+              "intent":"relay_message",
+              "commandId":"relay-cmd-1",
+              "payload":{
+                "text":"Hello from desktop",
+                "sourceLabel":"Desktop",
+                "sourceSurface":"laptop",
+                "threadId":"thread-22"
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertNotNull(parsed.relayChatEvent)
+        assertEquals("relay-cmd-1", parsed.relayChatEvent?.eventId)
+        assertEquals("Hello from desktop", parsed.relayChatEvent?.text)
+        assertEquals("Desktop", parsed.relayChatEvent?.sourceLabel)
+        assertEquals("desktop", parsed.relayChatEvent?.sourceSurface)
+        assertEquals("thread-22", parsed.relayChatEvent?.threadId)
+        assertNull(parsed.relayChatEvent?.status)
+    }
+
+    @Test
+    fun parseDeviceBusMessage_readsRelayReceiptAsChatEventStatus() {
+        val parsed = parseDeviceBusMessage(
+            """
+            {
+              "type":"command",
+              "intent":"relay_receipt",
+              "commandId":"relay-receipt-1",
+              "payload":{
+                "status":"seen",
+                "respondedFromLabel":"Phone",
+                "respondedFromSurface":"android",
+                "conversationId":"legacy-thread-18"
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertNotNull(parsed.relayChatEvent)
+        assertEquals("relay-receipt-1", parsed.relayChatEvent?.eventId)
+        assertEquals("seen", parsed.relayChatEvent?.status)
+        assertEquals("Phone", parsed.relayChatEvent?.sourceLabel)
+        assertEquals("mobile", parsed.relayChatEvent?.sourceSurface)
+        assertEquals("legacy-thread-18", parsed.relayChatEvent?.threadId)
+    }
+
+    @Test
     fun parseDeviceBusMessage_acceptsIncidentNotificationForSupportedClass() {
         val parsed = parseDeviceBusMessage(
             """

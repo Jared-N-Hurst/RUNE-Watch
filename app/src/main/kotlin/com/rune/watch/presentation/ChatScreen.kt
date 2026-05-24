@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,19 +23,28 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.Text
+import com.rune.watch.bus.WatchRelayTranscriptEntry
+import com.rune.watch.bus.WatchRelayTranscriptSummary
 import java.util.Locale
 
 @Composable
 fun ChatScreen(
+    relayTranscript: List<WatchRelayTranscriptEntry>,
+    relayConversationSummaries: List<WatchRelayTranscriptSummary>,
+    selectedConversationId: String?,
     voiceDraft: String,
     voiceListening: Boolean,
     currentLocale: Locale,
+    onPreviousConversation: () -> Unit,
+    onNextConversation: () -> Unit,
     onOpenVoiceCapture: () -> Unit,
     onSendVoiceDraft: () -> Unit,
     onClearVoiceDraft: () -> Unit,
     onBack: () -> Unit,
 ) {
     val voiceReady = voiceDraft.trim().isNotBlank()
+    val selectedConversationSummary = relayConversationSummaries.firstOrNull { it.conversationId == selectedConversationId }
+        ?: relayConversationSummaries.firstOrNull()
 
     Column(
         modifier = Modifier
@@ -57,6 +68,48 @@ fun ChatScreen(
             textAlign = TextAlign.Center,
         )
 
+        if (relayConversationSummaries.size > 1 && selectedConversationSummary != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(
+                    onClick = onPreviousConversation,
+                    modifier = Modifier.height(34.dp),
+                ) {
+                    Text(text = "◀", fontSize = 10.sp)
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(1.dp),
+                ) {
+                    Text(
+                        text = "Shared thread",
+                        fontSize = 8.sp,
+                        color = Color(0xFFB0BEC5),
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = selectedConversationSummary.latestMessageText
+                            ?: "Thread ${selectedConversationSummary.conversationId.take(8)}",
+                        fontSize = 9.sp,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+
+                Button(
+                    onClick = onNextConversation,
+                    modifier = Modifier.height(34.dp),
+                ) {
+                    Text(text = "▶", fontSize = 10.sp)
+                }
+            }
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -67,6 +120,20 @@ fun ChatScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(7.dp),
         ) {
+            if (relayTranscript.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    relayTranscript.takeLast(6).forEach { entry ->
+                        ChatTranscriptBubble(entry = entry)
+                    }
+                }
+            }
+
             Text(
                 text = when {
                     voiceListening -> watchChatListeningText(currentLocale)
@@ -127,6 +194,49 @@ fun ChatScreen(
                 .height(40.dp),
         ) {
             Text(watchChatBackButton(currentLocale))
+        }
+    }
+}
+
+@Composable
+private fun ChatTranscriptBubble(entry: WatchRelayTranscriptEntry) {
+    val bubbleColor = if (entry.fromWatch) Color(0xFF12344A) else Color(0xFF1A2331)
+    val borderColor = if (entry.fromWatch) Color(0x554FC3F7) else Color(0x3378919C)
+    val statusLabel = entry.status?.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth(0.96f)
+            .background(bubbleColor, RoundedCornerShape(14.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(14.dp))
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .then(if (entry.fromWatch) Modifier else Modifier),
+        horizontalAlignment = if (entry.fromWatch) Alignment.End else Alignment.Start,
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Text(
+            text = buildString {
+                append(entry.sourceLabel)
+                if (!statusLabel.isNullOrBlank()) {
+                    append(" • ")
+                    append(statusLabel)
+                }
+            },
+            fontSize = 9.sp,
+            color = Color(0xFFB0BEC5),
+        )
+        Text(
+            text = entry.text,
+            fontSize = 11.sp,
+            color = Color(0xFFCFD8DC),
+            textAlign = if (entry.fromWatch) TextAlign.End else TextAlign.Start,
+        )
+        if (!entry.threadId.isNullOrBlank()) {
+            Text(
+                text = "Thread ${entry.threadId.take(8)}",
+                fontSize = 9.sp,
+                color = Color(0xFFFFCC80),
+            )
         }
     }
 }

@@ -24,11 +24,21 @@ data class ParsedNotification(
     val incidentTenantId: String? = null,
 )
 
+data class ParsedRelayChatEvent(
+    val eventId: String,
+    val text: String,
+    val sourceLabel: String? = null,
+    val sourceSurface: String? = null,
+    val threadId: String? = null,
+    val status: String? = null,
+)
+
 data class ParsedDeviceBusMessage(
     val emberState: String? = null,
     val ringUpdate: String? = null,
     val notification: ParsedNotification? = null,
     val adaptiveFallbackProfile: String? = null,
+    val relayChatEvent: ParsedRelayChatEvent? = null,
 )
 
 data class WatchEmberEventEnvelopeV1(
@@ -231,6 +241,52 @@ internal fun parseDeviceBusMessage(text: String): ParsedDeviceBusMessage {
             "adaptive_fallback_profile" -> ParsedDeviceBusMessage(
                 adaptiveFallbackProfile = msg.optJSONObject("payload")?.toString()
             )
+            "relay_message" -> {
+                val payload = msg.optJSONObject("payload")
+                val text = when {
+                    payload != null -> payload.optString("text").trim()
+                    msg.opt("payload") is String -> msg.optString("payload").trim()
+                    else -> ""
+                }
+                val sourceSurface = normalizeSourceSurface(payload?.optString("sourceSurface"))
+                val sourceLabel = payload?.optString("sourceLabel")
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                ParsedDeviceBusMessage(
+                    relayChatEvent = ParsedRelayChatEvent(
+                        eventId = msg.optString("commandId").trim().ifEmpty { "relay-${System.currentTimeMillis()}" },
+                        text = text.ifEmpty { "Linked surface update" },
+                        sourceLabel = sourceLabel,
+                        sourceSurface = sourceSurface,
+                        threadId = payload?.let(::deriveThreadId),
+                    )
+                )
+            }
+            "relay_receipt" -> {
+                val payload = msg.optJSONObject("payload")
+                val status = payload?.optString("status")
+                    ?.trim()
+                    ?.lowercase()
+                    ?.takeIf { it.isNotEmpty() }
+                val sourceSurface = normalizeSourceSurface(
+                    payload?.optString("respondedFromSurface")
+                        ?.ifBlank { payload.optString("sourceSurface") }
+                )
+                val sourceLabel = payload?.optString("respondedFromLabel")
+                    ?.ifBlank { payload.optString("sourceLabel") }
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                ParsedDeviceBusMessage(
+                    relayChatEvent = ParsedRelayChatEvent(
+                        eventId = msg.optString("commandId").trim().ifEmpty { "relay-receipt-${System.currentTimeMillis()}" },
+                        text = "",
+                        sourceLabel = sourceLabel,
+                        sourceSurface = sourceSurface,
+                        threadId = payload?.let(::deriveThreadId),
+                        status = status,
+                    )
+                )
+            }
             else -> ParsedDeviceBusMessage(emberState = if (intent.isNotEmpty()) intent else null)
         }
     }.getOrDefault(ParsedDeviceBusMessage())

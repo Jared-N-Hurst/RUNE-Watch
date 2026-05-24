@@ -17,6 +17,7 @@ import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import com.rune.watch.bus.DeviceBusClient
+import com.rune.watch.bus.deriveOutgoingRelayThreadId
 import com.rune.watch.presentation.theme.EmberWatchTheme
 import com.rune.watch.settings.WatchSettingsStore
 import java.util.Locale
@@ -36,6 +37,9 @@ fun EmberApp(busClient: DeviceBusClient) {
         val navController = rememberSwipeDismissableNavController()
         val connected by busClient.connected.collectAsState()
         val emberState by busClient.emberState.collectAsState()
+        val relayTranscript by busClient.relayTranscript.collectAsState()
+        val relayTranscriptSummaries by busClient.relayTranscriptSummaries.collectAsState()
+        val selectedRelayConversationId by busClient.selectedRelayConversationId.collectAsState()
         val watchDeviceId by busClient.deviceIdState.collectAsState()
         var voiceDraftState by rememberSaveable { mutableStateOf("") }
         var voiceListening by rememberSaveable { mutableStateOf(false) }
@@ -82,11 +86,16 @@ fun EmberApp(busClient: DeviceBusClient) {
         fun sendVoiceDraft() {
             val text = voiceDraftState.trim()
             if (text.isBlank()) return
+            val relayThreadId = deriveOutgoingRelayThreadId(
+                current = relayTranscript,
+                fallbackThreadId = "watch-thread-${UUID.randomUUID()}"
+            )
             busClient.sendCommand(
                 intent = "relay_message",
                 payload = mapOf(
                     "text" to text,
                     "clientMessageId" to UUID.randomUUID().toString(),
+                    "threadId" to relayThreadId,
                     "sourceDeviceId" to watchDeviceId,
                     "sourceLabel" to "Watch",
                     "sourceSurface" to "watch",
@@ -126,9 +135,14 @@ fun EmberApp(busClient: DeviceBusClient) {
 
             composable("chat") {
                 ChatScreen(
+                    relayTranscript = relayTranscript,
+                    relayConversationSummaries = relayTranscriptSummaries,
+                    selectedConversationId = selectedRelayConversationId,
                     voiceDraft = voiceDraftState,
                     voiceListening = voiceListening,
                     currentLocale = currentLocale,
+                    onPreviousConversation = { busClient.cycleRelayTranscriptConversation(-1) },
+                    onNextConversation = { busClient.cycleRelayTranscriptConversation(1) },
                     onOpenVoiceCapture = ::launchVoiceCapture,
                     onSendVoiceDraft = ::sendVoiceDraft,
                     onClearVoiceDraft = {

@@ -133,9 +133,11 @@ dependencies {
 
 tasks.register<Test>("deviceContinuityRegressionTest") {
     group = "verification"
-    description = "Runs focused continuity regression tests for watch relay and bus parsing paths."
+    description = "Runs focused continuity regression tests for watch relay, transcript hydration, and bus parsing paths."
     testClassesDirs = tasks.named<Test>("testDebugUnitTest").get().testClassesDirs
     classpath = tasks.named<Test>("testDebugUnitTest").get().classpath
     include("**/BusClientParsingTest.*")
+    include("**/DeviceBusTranscriptHydrationTest.*")
     include("**/RelayStatusNormalizationTest.*")
+    include("**/WatchRelayTranscriptTest.*")
 }

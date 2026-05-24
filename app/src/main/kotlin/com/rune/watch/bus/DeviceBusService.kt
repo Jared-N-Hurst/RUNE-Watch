@@ -1,13 +1,16 @@
 ﻿// Copyright (c) RUNE Systems LLC 2026
 package com.rune.watch.bus
 
+import android.Manifest
 import android.content.Context
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.IBinder
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.rune.watch.health.HealthMonitor
@@ -118,8 +121,7 @@ class DeviceBusService : Service() {
         connectedJob = serviceScope.launch {
             DeviceBusRuntime.client(applicationContext).connected.collect { connected ->
                 DeviceBusRuntime.logConnectionState(connected)
-                getSystemService(NotificationManager::class.java)
-                    .notify(NOTIFICATION_ID, buildNotification(connected))
+                notifyConnectionState(connected)
             }
         }
     }
@@ -159,6 +161,17 @@ class DeviceBusService : Service() {
         }
         getSystemService(NotificationManager::class.java)
             .createNotificationChannel(channel)
+    }
+
+    private fun notifyConnectionState(connected: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        getSystemService(NotificationManager::class.java)
+            .notify(NOTIFICATION_ID, buildNotification(connected))
     }
 
     private fun buildNotification(connected: Boolean): Notification =
