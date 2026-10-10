@@ -31,6 +31,15 @@ class EmberComplicationService : SuspendingComplicationDataSourceService() {
                 contentDescription = PlainComplicationText.Builder("Ember AI assistant").build()
             ).setTitle(PlainComplicationText.Builder("Ready").build()).build()
 
+            // EMBER-ARCH-1.4: isilmeResonance (story convergence, 0..1) was already fetched
+            // here but never rendered anywhere -- RANGED_VALUE was declared in the manifest
+            // but unimplemented, so the system got null for this slot. Surfaces it as a
+            // progress ring instead of adding a new signal.
+            ComplicationType.RANGED_VALUE -> RangedValueComplicationData.Builder(
+                value = 0.3f, min = 0f, max = 1f,
+                contentDescription = PlainComplicationText.Builder("Ember resonance").build()
+            ).setText(PlainComplicationText.Builder("Resonance").build()).build()
+
             else -> null
         }
 
@@ -71,6 +80,17 @@ class EmberComplicationService : SuspendingComplicationDataSourceService() {
                         text = PlainComplicationText.Builder(body).build(),
                         contentDescription = PlainComplicationText.Builder("Ember AI assistant").build()
                     ).setTitle(PlainComplicationText.Builder(title).build()).build()
+                }
+
+                // EMBER-ARCH-1.4: isilmeResonance was fetched into both clients' data classes
+                // but never read anywhere -- this is the first real consumer.
+                ComplicationType.RANGED_VALUE -> {
+                    val resonance = (emberStatus?.isilmeResonance ?: fallbackIdentity?.isilmeResonance ?: 0.0)
+                        .toFloat().coerceIn(0f, 1f)
+                    RangedValueComplicationData.Builder(
+                        value = resonance, min = 0f, max = 1f,
+                        contentDescription = PlainComplicationText.Builder("Ember resonance").build()
+                    ).setText(PlainComplicationText.Builder("Resonance").build()).build()
                 }
 
                 else -> null
