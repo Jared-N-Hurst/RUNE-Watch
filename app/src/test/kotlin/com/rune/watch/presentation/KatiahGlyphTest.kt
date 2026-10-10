@@ -91,4 +91,37 @@ class KatiahGlyphTest {
         val opacityCeiling = (0.84f + (opacityPulsePeak * 0.16f)) * baseOpacity
         assertEquals(1.0f, opacityCeiling, 0.001f)
     }
+
+    /**
+     * EMBER-ARCH-6.2: resonance-driven outer-ring boost. Mirrors the formula in
+     * KatiahGlyph.kt's Canvas block.
+     */
+    @Test
+    fun testResonanceRingBoostIsZeroAtZeroResonance() {
+        val resonance = 0f
+        val resonanceRingBoost = 1f + resonance.coerceIn(0f, 1f) * 0.12f
+        val resonanceAlphaBoost = resonance.coerceIn(0f, 1f) * 0.18f
+
+        assertEquals(1.0f, resonanceRingBoost, 0.001f)
+        assertEquals(0.0f, resonanceAlphaBoost, 0.001f)
+    }
+
+    @Test
+    fun testResonanceRingBoostAtFullResonance() {
+        val resonance = 1f
+        val resonanceRingBoost = 1f + resonance.coerceIn(0f, 1f) * 0.12f
+        val resonanceAlphaBoost = resonance.coerceIn(0f, 1f) * 0.18f
+
+        assertEquals(1.12f, resonanceRingBoost, 0.001f)
+        assertEquals(0.18f, resonanceAlphaBoost, 0.001f)
+    }
+
+    @Test
+    fun testResonanceIsClampedOutsideZeroToOne() {
+        val belowRange = (-0.5f).coerceIn(0f, 1f)
+        val aboveRange = 1.5f.coerceIn(0f, 1f)
+
+        assertEquals(0f, belowRange)
+        assertEquals(1f, aboveRange)
+    }
 }

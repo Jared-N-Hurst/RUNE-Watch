@@ -2,6 +2,7 @@
 package com.rune.watch
 
 import android.content.ComponentName
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.wear.protolayout.ActionBuilders
 import androidx.wear.protolayout.ModifiersBuilders
 import androidx.wear.tiles.RequestBuilders
@@ -16,9 +17,15 @@ import androidx.wear.protolayout.TimelineBuilders
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.rune.watch.bus.DeviceBusRuntime
+import com.rune.watch.bus.EmberStatusClient
+import com.rune.watch.bus.IdentityMapClient
 import com.rune.watch.settings.WatchSettingsStore
+import com.rune.watch.storage.emberPrefsDataStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+
+private val KEY_USER_ID = stringPreferencesKey("user_id")
+private val KEY_AUTH_TOKEN = stringPreferencesKey("auth_token")
 
 /**
  * Ember WearOS Tile — appears in the Watch's swipe-left pages.
@@ -68,6 +75,19 @@ class EmberTileService : TileService() {
             val frameIndex = ((now / 1_500L) % emberFrames.size).toInt()
             val emberFrame = emberFrames[frameIndex]
             val paired = DeviceBusRuntime.client(applicationContext).paired.value
+
+            // EMBER-ARCH-6.2: same isilmeResonance metric + fetch pattern EmberComplicationService
+            // (EMBER-ARCH-1.4) already uses -- the tile has no live bus connection, so it reads
+            // credentials straight from DataStore like the complication service does.
+            val prefs = applicationContext.emberPrefsDataStore.data.first()
+            val userId = prefs[KEY_USER_ID] ?: ""
+            val authToken = prefs[KEY_AUTH_TOKEN] ?: ""
+            val resonance = if (userId.isNotEmpty() && authToken.isNotEmpty()) {
+                val status = EmberStatusClient().fetchTileStatus(userId, authToken)
+                val fallback = if (status == null) IdentityMapClient().fetchCompact(userId, authToken) else null
+                (status?.isilmeResonance ?: fallback?.isilmeResonance ?: 0.0).toFloat().coerceIn(0f, 1f)
+            } else 0f
+
             val launchAction = ActionBuilders.LaunchAction.Builder()
                 .setAndroidActivity(
                     ActionBuilders.AndroidActivity.Builder()
@@ -144,12 +164,16 @@ class EmberTileService : TileService() {
                 )
                 .build()
 
+            // EMBER-ARCH-6.2: resonance-driven ring boost, additive to the existing
+            // time-based frame cycling -- 0 resonance leaves the ring exactly as before.
+            val resonanceRingSizeSp = 50f + resonance * 10f
+            val resonanceRingAlpha = (0xAA + resonance * (0xFF - 0xAA)).toInt().coerceIn(0, 0xFF)
             val outerRing = LayoutElementBuilders.Text.Builder()
                 .setText("○")
                 .setFontStyle(
                     FontStyle.Builder()
-                        .setSize(DimensionBuilders.sp(50f))
-                        .setColor(ColorBuilders.argb(accentRgb or 0xAA000000.toInt()))
+                        .setSize(DimensionBuilders.sp(resonanceRingSizeSp))
+                        .setColor(ColorBuilders.argb(accentRgb or (resonanceRingAlpha shl 24)))
                         .build()
                 )
                 .build()

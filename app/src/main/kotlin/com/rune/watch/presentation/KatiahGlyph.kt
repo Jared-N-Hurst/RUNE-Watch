@@ -44,6 +44,10 @@ import kotlin.math.PI
  * @param pulseDuration Duration of pulse animation in milliseconds
  * @param size Size of the glyph (default 80.dp for watch)
  * @param connected Connection state (affects animation intensity)
+ * @param resonance EMBER-ARCH-6.2: isilmeResonance (story convergence, 0..1), boosting the
+ *   outer pulse ring's radius/alpha -- same metric EmberComplicationService (EMBER-ARCH-1.4)
+ *   already surfaces as a RANGED_VALUE complication. Defaults to 0 (no visual change) so
+ *   existing callers that don't pass it render identically to before.
  * @param modifier Modifier to apply to the composable
  */
 @Composable
@@ -53,6 +57,7 @@ fun KatiahGlyph(
     pulseDuration: Int = 3100, // idle pulse: 3.1s
     size: Dp = 100.dp,
     connected: Boolean = true,
+    resonance: Float = 0f,
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "glyph_pulse")
@@ -119,6 +124,12 @@ fun KatiahGlyph(
             val compactGlyph = canvasSize <= 100f
             val orbitCenterX = center
 
+            // EMBER-ARCH-6.2: resonance-driven ring boost, additive to the existing pulse
+            // animation -- 0 resonance leaves the ring exactly as before.
+            val resonanceClamped = resonance.coerceIn(0f, 1f)
+            val resonanceRingBoost = 1f + resonanceClamped * 0.12f
+            val resonanceAlphaBoost = resonanceClamped * 0.18f
+
             runePaint.textSize = canvasSize * if (compactGlyph) 0.080f else 0.090f
 
             drawCircle(
@@ -127,8 +138,8 @@ fun KatiahGlyph(
             )
 
             drawCircle(
-                color = emotionalColor.copy(alpha = 0.22f * opacity),
-                radius = outerRingRadius * pulseRingScale,
+                color = emotionalColor.copy(alpha = (0.22f + resonanceAlphaBoost) * opacity),
+                radius = outerRingRadius * pulseRingScale * resonanceRingBoost,
                 style = Stroke(
                     width = strokeWidth,
                     cap = StrokeCap.Round,

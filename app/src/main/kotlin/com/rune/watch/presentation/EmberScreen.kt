@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -13,18 +14,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.wear.compose.material.*
 import com.rune.watch.bus.DeviceBusClient
+import com.rune.watch.bus.EmberStatusClient
+import com.rune.watch.bus.IdentityMapClient
 import com.rune.watch.bus.NotificationAction
 import com.rune.watch.presentation.notifications.NotificationRenderer
+import com.rune.watch.storage.emberPrefsDataStore
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import java.util.Locale
+
+private val KEY_USER_ID = stringPreferencesKey("user_id")
+private val KEY_AUTH_TOKEN = stringPreferencesKey("auth_token")
+private const val RESONANCE_POLL_INTERVAL_MS = 60_000L
 
 @Composable
 fun EmberScreen(
@@ -39,10 +51,31 @@ fun EmberScreen(
     busClient: DeviceBusClient,
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val notification by busClient.currentNotification.collectAsState()
     var radialMenuOpen by rememberSaveable { mutableStateOf(false) }
+    var resonance by remember { mutableStateOf(0f) }
     val connectedStatus = remember(connected, currentLocale) {
         watchHomeConnectionStatus(connected, currentLocale)
+    }
+
+    // EMBER-ARCH-6.2: polls the same isilmeResonance metric EmberComplicationService
+    // (EMBER-ARCH-1.4) already surfaces, via the same lightweight network-client fetch
+    // pattern -- independent of the live DeviceBusClient socket, which has no public
+    // authToken accessor.
+    LaunchedEffect(Unit) {
+        while (true) {
+            val prefs = context.emberPrefsDataStore.data.first()
+            val userId = prefs[KEY_USER_ID] ?: ""
+            val authToken = prefs[KEY_AUTH_TOKEN] ?: ""
+            if (userId.isNotEmpty() && authToken.isNotEmpty()) {
+                val status = EmberStatusClient().fetchTileStatus(userId, authToken)
+                val fallback = if (status == null) IdentityMapClient().fetchCompact(userId, authToken) else null
+                resonance = (status?.isilmeResonance ?: fallback?.isilmeResonance ?: 0.0)
+                    .toFloat().coerceIn(0f, 1f)
+            }
+            delay(RESONANCE_POLL_INTERVAL_MS)
+        }
     }
 
     val themeAccent = androidx.wear.compose.material.MaterialTheme.colors.primary
@@ -126,6 +159,7 @@ fun EmberScreen(
                             pulseDuration = pulseDuration,
                             size = orbGlyphSize,
                             connected = connected,
+                            resonance = resonance,
                         )
                     }
 
